@@ -101,8 +101,8 @@ class BetterDisplayCliController(private var exePath: String) : MonitorControlle
                 continue
             }
             
-            if (e2 == 0) {
-                // Potential "busy 0" or actual Single Source mode. 
+            if (e2 == 0 || e2 == 0x3900) {
+                // Potential "busy" or actual Single Source mode. 
                 // We MUST NOT read 0x60 yet, because if this is a busy PBP state, reading 0x60 
                 // will corrupt the DDC bus and leave stale bytes for the next read!
                 consecutiveZeros++
@@ -128,9 +128,9 @@ class BetterDisplayCliController(private var exePath: String) : MonitorControlle
                 )
             }
             
-            // If we are in PBP mode, e2 must be 0x39xx
+            // If we are in PBP mode, e2 must be 0x39xx (excluding 0x3900 which is Single Source)
             consecutiveZeros = 0
-            if ((e2 and 0xFF00) == 0x3900) {
+            if ((e2 and 0xFF00) == 0x3900 && e2 != 0x3900) {
                 kotlinx.coroutines.delay(1000)
                 
                 // Read E3
@@ -181,6 +181,11 @@ class BetterDisplayCliController(private var exePath: String) : MonitorControlle
     override suspend fun setLayout(layout: Layout): Boolean {
         val hexValue = "0x" + layout.code.toString(16).padStart(2, '0')
         return setVcpValue("0xE2", hexValue)
+    }
+
+    override suspend fun setMainSource(sourceCode: SourceCode): Boolean {
+        val hexValue = "0x" + sourceCode.mccsCode.toString(16).padStart(2, '0')
+        return setVcpValue("0x60", hexValue)
     }
 
     override suspend fun setSource(channel: PaneChannel, sourceCode: SourceCode): Boolean {

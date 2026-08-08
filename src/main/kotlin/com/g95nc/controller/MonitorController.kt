@@ -3,6 +3,7 @@ package com.g95nc.controller
 interface MonitorController {
     suspend fun getStatus(): MonitorStatus?
     suspend fun setLayout(layout: Layout): Boolean
+    suspend fun setMainSource(sourceCode: SourceCode): Boolean
     suspend fun setSource(channel: PaneChannel, sourceCode: SourceCode): Boolean
     suspend fun setAudioSource(audioCode: Int): Boolean
     suspend fun isToolAvailable(): Boolean

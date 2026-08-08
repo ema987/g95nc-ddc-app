@@ -64,7 +64,11 @@ fun main() = application {
                 }
                 change.previousStatus.paneSources.forEach { (channel, source) ->
                     if (currentStatus?.paneSources?.get(channel) != source) {
-                        controller.setSource(channel, source)
+                        if (targetLayout == Layout.OFF && channel == PaneChannel.PANE_1) {
+                            controller.setMainSource(source)
+                        } else {
+                            controller.setSource(channel, source)
+                        }
                         delay(4000) // Source change triggers HDMI handshake, wait before next command
                     }
                 }
@@ -108,7 +112,11 @@ fun main() = application {
                         }
                         preset.paneSources.forEach { (channel, source) ->
                             if (currentStatus?.paneSources?.get(channel) != source) {
-                                controller.setSource(channel, source)
+                                if (preset.layout == Layout.OFF && channel == PaneChannel.PANE_1) {
+                                    controller.setMainSource(source)
+                                } else {
+                                    controller.setSource(channel, source)
+                                }
                                 delay(4000)
                             }
                         }
@@ -167,7 +175,11 @@ fun main() = application {
                                         }
                                         change.previousStatus.paneSources.forEach { (channel, source) ->
                                             if (currentStatus?.paneSources?.get(channel) != source) {
-                                                controller.setSource(channel, source)
+                                                if (targetLayout == Layout.OFF && channel == PaneChannel.PANE_1) {
+                                                    controller.setMainSource(source)
+                                                } else {
+                                                    controller.setSource(channel, source)
+                                                }
                                                 delay(4000)
                                             }
                                         }

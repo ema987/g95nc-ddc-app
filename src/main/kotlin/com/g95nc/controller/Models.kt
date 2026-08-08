@@ -34,7 +34,7 @@ enum class Layout(val code: Int, val description: String) {
 enum class SourceCode(val e3Code: Int, val mccsCode: Int, val description: String) {
     HDMI1(0x00, 0x11, "HDMI 1"),
     HDMI2(0x01, 0x12, "HDMI 2"),
-    HDMI3(0x02, 0x00, "HDMI 3"), // Assuming 0x00 for MCCS if unknown
+    HDMI3(0x02, 0x32, "HDMI 3"),
     DP(0x10, 0x0F, "DisplayPort");
 
     companion object {

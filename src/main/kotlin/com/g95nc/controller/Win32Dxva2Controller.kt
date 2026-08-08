@@ -111,6 +111,10 @@ class Win32Dxva2Controller : MonitorController {
         return setVcpValue(0xE2, layout.code)
     }
 
+    override suspend fun setMainSource(sourceCode: SourceCode): Boolean {
+        return setVcpValue(0x60, sourceCode.mccsCode)
+    }
+
     override suspend fun setSource(channel: PaneChannel, sourceCode: SourceCode): Boolean {
         val e3Val = (channel.channel shl 8) or sourceCode.e3Code
         return setVcpValue(0xE3, e3Val)

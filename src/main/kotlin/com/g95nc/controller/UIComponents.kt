@@ -202,8 +202,12 @@ fun Dashboard(
                                     kotlinx.coroutines.delay(4000)
                                 }
                                 preset.paneSources.forEach { (channel, source) ->
-                                    if (status?.paneSources?.get(channel) != source) {
-                                        controller.setSource(channel, source)
+                                    if (currentStatus?.paneSources?.get(channel) != source) {
+                                        if (preset.layout == Layout.OFF && channel == PaneChannel.PANE_1) {
+                                            controller.setMainSource(source)
+                                        } else {
+                                            controller.setSource(channel, source)
+                                        }
                                         kotlinx.coroutines.delay(4000)
                                     }
                                 }
@@ -243,7 +247,11 @@ fun PaneSourceSelector(
                     DropdownMenuItem(onClick = {
                         expanded = false
                         onExecuteAction { _ ->
-                            controller.setSource(channel, src)
+                            if (status.layout == Layout.OFF) {
+                                controller.setMainSource(src)
+                            } else {
+                                controller.setSource(channel, src)
+                            }
                         }
                     }) {
                         Text(src.description)

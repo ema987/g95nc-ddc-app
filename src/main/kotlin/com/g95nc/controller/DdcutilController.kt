@@ -106,6 +106,11 @@ class DdcutilController(private var exePath: String) : MonitorController {
         return setVcpValue("E2", hexValue)
     }
 
+    override suspend fun setMainSource(sourceCode: SourceCode): Boolean {
+        val hexValue = "0x" + sourceCode.mccsCode.toString(16).padStart(2, '0')
+        return setVcpValue("60", hexValue)
+    }
+
     override suspend fun setSource(channel: PaneChannel, sourceCode: SourceCode): Boolean {
         val e3Val = (channel.channel shl 8) or sourceCode.e3Code
         val hexValue = "0x" + e3Val.toString(16).padStart(4, '0')

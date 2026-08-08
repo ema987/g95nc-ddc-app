@@ -6,9 +6,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -18,30 +20,68 @@ import java.util.UUID
 fun Dashboard(
     status: MonitorStatus?,
     controller: MonitorController,
+    pendingChange: PendingChange?,
     onSettingsClick: () -> Unit,
+    onConfirmChange: () -> Unit,
+    onRevertChange: () -> Unit,
+    onExecuteAction: (suspend (MonitorStatus?) -> Unit) -> Unit,
     onRefresh: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
     var isSavingPreset by remember { mutableStateOf(false) }
     var newPresetName by remember { mutableStateOf("") }
 
-    Column(modifier = Modifier.padding(16.dp).fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("G95NC Control Dashboard", style = MaterialTheme.typography.h5)
+            Text("Dashboard", style = MaterialTheme.typography.h5)
             Row {
-                Button(onClick = onRefresh, modifier = Modifier.padding(end = 8.dp)) {
-                    Text("Refresh")
+                IconButton(onClick = onRefresh) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                 }
                 IconButton(onClick = onSettingsClick) {
-                    Icon(Icons.Filled.Settings, "Settings")
+                    Icon(Icons.Default.Settings, contentDescription = "Settings")
                 }
             }
         }
+        
         Divider(modifier = Modifier.padding(vertical = 16.dp))
+        
+        if (pendingChange != null) {
+            Card(
+                backgroundColor = MaterialTheme.colors.primaryVariant,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Keep these display settings?\nReverting in ${pendingChange.countdown}s...",
+                        color = Color.White
+                    )
+                    Row {
+                        OutlinedButton(
+                            onClick = onRevertChange,
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                        ) {
+                            Text("Revert")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = onConfirmChange,
+                            colors = ButtonDefaults.buttonColors(backgroundColor = Color.White, contentColor = Color.Black)
+                        ) {
+                            Text("Confirm")
+                        }
+                    }
+                }
+            }
+        }
         
         if (status == null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -69,9 +109,8 @@ fun Dashboard(
                 Layout.entries.forEach { layout ->
                     DropdownMenuItem(onClick = {
                         expandedLayout = false
-                        scope.launch {
+                        onExecuteAction { _ ->
                             controller.setLayout(layout)
-                            onRefresh()
                         }
                     }) {
                         Text(layout.description)
@@ -86,13 +125,13 @@ fun Dashboard(
             val is3Way = status.layout?.name?.startsWith("PBP_3") == true
             val is2WayOrPip = status.layout?.name?.startsWith("PBP_2") == true || status.layout == Layout.PIP
             
-            PaneSourceSelector(if (is3Way || is2WayOrPip) "Left" else "Main", PaneChannel.PANE_1, controller, status, onRefresh)
+            PaneSourceSelector(if (is3Way || is2WayOrPip) "Left" else "Main", PaneChannel.PANE_1, controller, status, onExecuteAction)
             
             if (is3Way) {
-                PaneSourceSelector("Middle", PaneChannel.PANE_2, controller, status, onRefresh)
-                PaneSourceSelector("Right", PaneChannel.PANE_3, controller, status, onRefresh)
+                PaneSourceSelector("Middle", PaneChannel.PANE_2, controller, status, onExecuteAction)
+                PaneSourceSelector("Right", PaneChannel.PANE_3, controller, status, onExecuteAction)
             } else if (is2WayOrPip) {
-                PaneSourceSelector("Right/Sub", PaneChannel.PANE_2, controller, status, onRefresh)
+                PaneSourceSelector("Right/Sub", PaneChannel.PANE_2, controller, status, onExecuteAction)
             }
         }
 
@@ -157,15 +196,20 @@ fun Dashboard(
                             Text(preset.layout.description, style = MaterialTheme.typography.caption)
                         }
                         Button(onClick = {
-                            scope.launch {
-                                controller.setLayout(preset.layout)
-                                preset.paneSources.forEach { (channel, source) ->
-                                    controller.setSource(channel, source)
+                            onExecuteAction { currentStatus ->
+                                if (currentStatus?.layout != preset.layout) {
+                                    controller.setLayout(preset.layout)
+                                    kotlinx.coroutines.delay(4000)
                                 }
-                                if (preset.audioSource != null) {
+                                preset.paneSources.forEach { (channel, source) ->
+                                    if (status?.paneSources?.get(channel) != source) {
+                                        controller.setSource(channel, source)
+                                        kotlinx.coroutines.delay(4000)
+                                    }
+                                }
+                                if (preset.audioSource != null && status?.audioSource != preset.audioSource) {
                                     controller.setAudioSource(preset.audioSource)
                                 }
-                                onRefresh()
                             }
                         }) {
                             Text("Apply")
@@ -183,9 +227,8 @@ fun PaneSourceSelector(
     channel: PaneChannel,
     controller: MonitorController,
     status: MonitorStatus,
-    onRefresh: () -> Unit
+    onExecuteAction: (suspend (MonitorStatus?) -> Unit) -> Unit
 ) {
-    val scope = rememberCoroutineScope()
     var expanded by remember { mutableStateOf(false) }
     val currentSource = status.paneSources[channel]
     
@@ -199,9 +242,8 @@ fun PaneSourceSelector(
                 SourceCode.entries.filter { it != currentSource }.forEach { src ->
                     DropdownMenuItem(onClick = {
                         expanded = false
-                        scope.launch {
+                        onExecuteAction { _ ->
                             controller.setSource(channel, src)
-                            onRefresh()
                         }
                     }) {
                         Text(src.description)

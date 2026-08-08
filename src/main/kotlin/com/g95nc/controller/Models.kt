@@ -57,6 +57,11 @@ data class MonitorStatus(
     val mainInputSource: Int // 60
 )
 
+data class PendingChange(
+    val previousStatus: MonitorStatus,
+    val countdown: Int
+)
+
 @Serializable
 data class Preset(
     val id: String,

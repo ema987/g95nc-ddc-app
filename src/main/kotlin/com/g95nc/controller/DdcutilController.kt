@@ -2,8 +2,11 @@ package com.g95nc.controller
 
 class DdcutilController(private var exePath: String) : MonitorController {
     
+    private var cachedBus: String? = null
+
     fun updatePath(newPath: String) {
         exePath = newPath
+        cachedBus = null
     }
 
     override suspend fun isToolAvailable(): Boolean {
@@ -15,21 +18,26 @@ class DdcutilController(private var exePath: String) : MonitorController {
         }
     }
 
-    private suspend fun getMonitorI2cBus(): String? {
-        // ddcutil detect gives a list of displays. We can look for the G95NC or just rely on default if there's only one.
-        // For now, let's assume ddcutil without bus selection works if there's only one monitor,
-        // or we parse `ddcutil detect` to find the bus number.
+    private suspend fun getMonitorI2cBus(forceRefresh: Boolean = false): String? {
+        if (!forceRefresh && cachedBus != null) return cachedBus
+
         return try {
             val output = ProcessUtils.runCommand(listOf(exePath, "detect"))
             val lines = output.split("\n")
             var currentBus: String? = null
             for (line in lines) {
-                if (line.contains("I2C bus:")) {
+                if (line.contains("I2C bus:", ignoreCase = true)) {
                     currentBus = Regex("""/dev/i2c-(\d+)""").find(line)?.groupValues?.get(1)
                 }
-                if (line.contains("Model:") && line.contains("G95NC", ignoreCase = true)) {
-                    return currentBus
+                if (line.contains("Model:", ignoreCase = true) && 
+                   (line.contains("G95NC", ignoreCase = true) || line.contains("Odyssey", ignoreCase = true) || line.contains("G9", ignoreCase = true))) {
+                    cachedBus = currentBus
+                    return cachedBus
                 }
+            }
+            if (currentBus != null) {
+                cachedBus = currentBus
+                return cachedBus
             }
             null
         } catch (e: Exception) {
@@ -47,14 +55,17 @@ class DdcutilController(private var exePath: String) : MonitorController {
         }
         return try {
             val output = ProcessUtils.runCommand(cmd)
-            // Terse output format: VCP 0E2 C 0x390b 0x00ff
-            val parts = output.split(Regex("\\s+"))
-            if (parts.size >= 4) {
-                val hexStr = parts[3].removePrefix("0x")
-                hexStr.toIntOrNull(16)
-            } else {
-                null
+            var result = parseVcpOutput(output)
+            if (result == null && bus != null) {
+                // Try refreshing bus once in case bus ID changed
+                val refreshedBus = getMonitorI2cBus(forceRefresh = true)
+                if (refreshedBus != null && refreshedBus != bus) {
+                    val retryCmd = mutableListOf(exePath, "getvcp", vcp, "--terse", "--bus", refreshedBus)
+                    val retryOutput = ProcessUtils.runCommand(retryCmd)
+                    result = parseVcpOutput(retryOutput)
+                }
             }
+            result
         } catch (e: Exception) {
             e.printStackTrace()
             null
@@ -78,27 +89,74 @@ class DdcutilController(private var exePath: String) : MonitorController {
     }
 
     override suspend fun getStatus(): MonitorStatus? {
-        val e2 = getVcpValue("E2") ?: return null
-        val e3 = getVcpValue("E3") ?: return null
-        val e8 = getVcpValue("E8") ?: 0
-        val v60 = getVcpValue("60") ?: 0
+        var consecutiveZeros = 0
 
-        val layout = when (e2) {
-            0x3901 -> Layout.PBP_2_50_50 
-            0x3909 -> Layout.PBP_3_50_25_25
-            0x390b -> Layout.PBP_3_25_50_25
-            0x390d -> Layout.PBP_3_25_25_50
-            0x390f -> Layout.PIP
-            else -> Layout.OFF
+        for (attempt in 1..10) {
+            val e2 = getVcpValue("E2") ?: getVcpValue("0xE2")
+
+            if (e2 == null) {
+                consecutiveZeros = 0
+                kotlinx.coroutines.delay(500)
+                continue
+            }
+
+            if (e2 == 0 || e2 == 0x3900) {
+                consecutiveZeros++
+                if (consecutiveZeros < 2) {
+                    kotlinx.coroutines.delay(500)
+                    continue
+                }
+
+                val v60 = getVcpValue("60") ?: 0
+                val e8 = getVcpValue("E8") ?: 0
+
+                val mainSource = SourceCode.entries.find { it.mccsCode == v60 }
+                val paneSources = if (mainSource != null) mapOf(PaneChannel.PANE_1 to mainSource) else emptyMap()
+
+                return MonitorStatus(
+                    layout = Layout.OFF,
+                    layoutStatusRaw = e2,
+                    paneSources = paneSources,
+                    audioSource = e8,
+                    mainInputSource = v60
+                )
+            }
+
+            consecutiveZeros = 0
+            if ((e2 and 0xFF00) == 0x3900 && e2 != 0x3900) {
+                kotlinx.coroutines.delay(300)
+                val e3 = getVcpValue("E3") ?: 0
+                val e8 = getVcpValue("E8") ?: 0
+                val v60 = getVcpValue("60") ?: 0
+
+                val layout = when (e2) {
+                    0x3901, 0x3903 -> Layout.PBP_2_50_50
+                    0x3909 -> Layout.PBP_3_50_25_25
+                    0x390b -> Layout.PBP_3_25_50_25
+                    0x390d -> Layout.PBP_3_25_25_50
+                    0x390f -> Layout.PIP
+                    else -> Layout.OFF
+                }
+
+                val panes = mutableMapOf<PaneChannel, SourceCode>()
+                val leftCode = (e3 shr 8) and 0xFF
+                val rightCode = e3 and 0xFF
+                SourceCode.fromE3Code(leftCode)?.let { panes[PaneChannel.PANE_1] = it }
+                SourceCode.fromE3Code(rightCode)?.let { panes[PaneChannel.PANE_2] = it }
+
+                return MonitorStatus(
+                    layout = layout,
+                    layoutStatusRaw = e2,
+                    paneSources = panes,
+                    audioSource = e8,
+                    mainInputSource = v60
+                )
+            }
+
+            kotlinx.coroutines.delay(500)
         }
-        
-        return MonitorStatus(
-            layout = layout,
-            layoutStatusRaw = e2,
-            paneSources = emptyMap(),
-            audioSource = e8,
-            mainInputSource = v60
-        )
+
+        return null
     }
 
     override suspend fun setLayout(layout: Layout): Boolean {
@@ -121,4 +179,52 @@ class DdcutilController(private var exePath: String) : MonitorController {
         val hexValue = "0x" + audioCode.toString(16).padStart(2, '0')
         return setVcpValue("E8", hexValue)
     }
+
+    companion object {
+        fun parseVcpOutput(output: String): Int? {
+            if (output.isBlank()) return null
+            val tokens = output.trim().split(Regex("\\s+"))
+
+            // Check for CNC (Complex Non-Continuous): VCP <vcp> CNC <mh> <ml> <sh> <sl>
+            val cncIndex = tokens.indexOfFirst { it.equals("CNC", ignoreCase = true) }
+            if (cncIndex != -1 && tokens.size > cncIndex + 4) {
+                val sh = parseHexByte(tokens[cncIndex + 3]) ?: 0
+                val sl = parseHexByte(tokens[cncIndex + 4]) ?: 0
+                return (sh shl 8) or sl
+            }
+
+            // Check for SNC (Simple Non-Continuous): VCP <vcp> SNC <sl> or VCP <vcp> SNC <sh> <sl>
+            val sncIndex = tokens.indexOfFirst { it.equals("SNC", ignoreCase = true) }
+            if (sncIndex != -1 && tokens.size > sncIndex + 1) {
+                val sl = parseHexByte(tokens.last()) ?: return null
+                val sh = if (tokens.size > sncIndex + 2) (parseHexByte(tokens[sncIndex + 1]) ?: 0) else 0
+                return (sh shl 8) or sl
+            }
+
+            // Fallback for non-terse output with sh=0x.. sl=0x..
+            val shMatch = Regex("""sh=0x?([0-9a-fA-F]+)""").find(output)
+            val slMatch = Regex("""sl=0x?([0-9a-fA-F]+)""").find(output)
+            if (slMatch != null) {
+                val sl = slMatch.groupValues[1].toIntOrNull(16) ?: 0
+                val sh = shMatch?.groupValues?.get(1)?.toIntOrNull(16) ?: 0
+                return (sh shl 8) or sl
+            }
+
+            // Generic hex match as last resort (e.g. "Value: 0x3901")
+            val hexMatch = Regex("""0x([0-9a-fA-F]+)""").find(output)
+            if (hexMatch != null) {
+                return hexMatch.groupValues[1].toIntOrNull(16)
+            }
+
+            // Plain integer match
+            val intMatch = Regex("""\b(\d+)\b""").findAll(output).lastOrNull()
+            return intMatch?.groupValues?.get(1)?.toIntOrNull()
+        }
+
+        fun parseHexByte(str: String): Int? {
+            val clean = str.removePrefix("0x").removePrefix("x")
+            return clean.toIntOrNull(16)
+        }
+    }
 }
+

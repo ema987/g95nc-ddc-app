@@ -85,23 +85,35 @@ class Win32Dxva2Controller : MonitorController {
 
     override suspend fun getStatus(): MonitorStatus? {
         val e2 = getVcpValue(0xE2) ?: return null
-        val e3 = getVcpValue(0xE3) ?: return null
+        val e3 = getVcpValue(0xE3) ?: 0
         val e8 = getVcpValue(0xE8) ?: 0
         val v60 = getVcpValue(0x60) ?: 0
 
         val layout = when (e2) {
-            0x3901 -> Layout.PBP_2_50_50 
+            0x3901, 0x3903 -> Layout.PBP_2_50_50 
             0x3909 -> Layout.PBP_3_50_25_25
             0x390b -> Layout.PBP_3_25_50_25
             0x390d -> Layout.PBP_3_25_25_50
             0x390f -> Layout.PIP
             else -> Layout.OFF
         }
+
+        val paneSources = if (layout == Layout.OFF) {
+            val mainSource = SourceCode.entries.find { it.mccsCode == v60 }
+            if (mainSource != null) mapOf(PaneChannel.PANE_1 to mainSource) else emptyMap()
+        } else {
+            val panes = mutableMapOf<PaneChannel, SourceCode>()
+            val leftCode = (e3 shr 8) and 0xFF
+            val rightCode = e3 and 0xFF
+            SourceCode.fromE3Code(leftCode)?.let { panes[PaneChannel.PANE_1] = it }
+            SourceCode.fromE3Code(rightCode)?.let { panes[PaneChannel.PANE_2] = it }
+            panes
+        }
         
         return MonitorStatus(
             layout = layout,
             layoutStatusRaw = e2,
-            paneSources = emptyMap(),
+            paneSources = paneSources,
             audioSource = e8,
             mainInputSource = v60
         )

@@ -108,6 +108,9 @@ class BetterDisplayCliController(private var exePath: String) : MonitorControlle
             if (e2 == null) {
                 consecutiveZeros = 0
                 kotlinx.coroutines.delay(1000)
+                if (attempt % 3 == 0) {
+                    getMonitorTagId(forceRefresh = true)
+                }
                 continue
             }
             

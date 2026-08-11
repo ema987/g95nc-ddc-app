@@ -150,7 +150,14 @@ class BetterDisplayCliController(private var exePath: String) : MonitorControlle
                 val e3 = getVcpValue("0xE3")
                 java.io.File("cli_debug.log").appendText("E3 value: $e3\n")
                 
-                if (e3 == null || e3 == 0 || ((e3 and 0xFF00) != 0x1000 && (e3 and 0xFF00) != 0xc000)) {
+                if (e3 == null) {
+                    kotlinx.coroutines.delay(1000)
+                    continue
+                }
+                
+                val leftCode = (e3 shr 8) and 0xFF
+                val rightCode = e3 and 0xFF
+                if (SourceCode.fromE3Code(leftCode) == null || SourceCode.fromE3Code(rightCode) == null) {
                     // Monitor is echoing or returning garbage (e.g. 14593 for E3). It's still busy!
                     kotlinx.coroutines.delay(1000)
                     continue // Retry entire E2 fetch!
@@ -170,8 +177,6 @@ class BetterDisplayCliController(private var exePath: String) : MonitorControlle
                 }
                 
                 val panes = mutableMapOf<PaneChannel, SourceCode>()
-                val leftCode = (e3 shr 8) and 0xFF
-                val rightCode = e3 and 0xFF
                 SourceCode.fromE3Code(leftCode)?.let { panes[PaneChannel.PANE_1] = it }
                 SourceCode.fromE3Code(rightCode)?.let { panes[PaneChannel.PANE_2] = it }
                 

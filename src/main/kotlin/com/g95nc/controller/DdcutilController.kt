@@ -126,6 +126,13 @@ class DdcutilController(private var exePath: String) : MonitorController {
             if ((e2 and 0xFF00) == 0x3900 && e2 != 0x3900) {
                 kotlinx.coroutines.delay(300)
                 val e3 = getVcpValue("E3") ?: 0
+                val leftCode = (e3 shr 8) and 0xFF
+                val rightCode = e3 and 0xFF
+                if (SourceCode.fromE3Code(leftCode) == null || SourceCode.fromE3Code(rightCode) == null) {
+                    kotlinx.coroutines.delay(500)
+                    continue
+                }
+                
                 val e8 = getVcpValue("E8") ?: 0
                 val v60 = getVcpValue("60") ?: 0
 
@@ -139,8 +146,6 @@ class DdcutilController(private var exePath: String) : MonitorController {
                 }
 
                 val panes = mutableMapOf<PaneChannel, SourceCode>()
-                val leftCode = (e3 shr 8) and 0xFF
-                val rightCode = e3 and 0xFF
                 SourceCode.fromE3Code(leftCode)?.let { panes[PaneChannel.PANE_1] = it }
                 SourceCode.fromE3Code(rightCode)?.let { panes[PaneChannel.PANE_2] = it }
 

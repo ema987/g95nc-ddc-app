@@ -24,12 +24,13 @@ fun Dashboard(
     onSettingsClick: () -> Unit,
     onConfirmChange: () -> Unit,
     onRevertChange: () -> Unit,
-    onExecuteAction: (suspend (MonitorStatus?) -> Unit) -> Unit,
+    onExecuteAction: (Boolean, suspend (MonitorStatus?) -> Unit) -> Unit,
     onRefresh: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
     var isSavingPreset by remember { mutableStateOf(false) }
     var newPresetName by remember { mutableStateOf("") }
+    var safeMode by remember { mutableStateOf(ConfigManager.config.enableSafetyCountdown) }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(
@@ -38,7 +39,10 @@ fun Dashboard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("Dashboard", style = MaterialTheme.typography.h5)
-            Row {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = safeMode, onCheckedChange = { safeMode = it })
+                Text("Safe Mode", style = MaterialTheme.typography.caption)
+                Spacer(modifier = Modifier.width(8.dp))
                 IconButton(onClick = onRefresh) {
                     Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                 }
@@ -109,7 +113,7 @@ fun Dashboard(
                 Layout.entries.forEach { layout ->
                     DropdownMenuItem(onClick = {
                         expandedLayout = false
-                        onExecuteAction { _ ->
+                        onExecuteAction(safeMode) { _ ->
                             controller.setLayout(layout)
                         }
                     }) {
@@ -125,13 +129,13 @@ fun Dashboard(
             val is3Way = status.layout?.name?.startsWith("PBP_3") == true
             val is2WayOrPip = status.layout?.name?.startsWith("PBP_2") == true || status.layout == Layout.PIP
             
-            PaneSourceSelector(if (is3Way || is2WayOrPip) "Left" else "Main", PaneChannel.PANE_1, controller, status, onExecuteAction)
+            PaneSourceSelector(if (is3Way || is2WayOrPip) "Left" else "Main", PaneChannel.PANE_1, controller, status) { action -> onExecuteAction(safeMode, action) }
             
             if (is3Way) {
-                PaneSourceSelector("Middle", PaneChannel.PANE_2, controller, status, onExecuteAction)
-                PaneSourceSelector("Right", PaneChannel.PANE_3, controller, status, onExecuteAction)
+                PaneSourceSelector("Middle", PaneChannel.PANE_2, controller, status) { action -> onExecuteAction(safeMode, action) }
+                PaneSourceSelector("Right", PaneChannel.PANE_3, controller, status) { action -> onExecuteAction(safeMode, action) }
             } else if (is2WayOrPip) {
-                PaneSourceSelector("Right/Sub", PaneChannel.PANE_2, controller, status, onExecuteAction)
+                PaneSourceSelector("Right/Sub", PaneChannel.PANE_2, controller, status) { action -> onExecuteAction(safeMode, action) }
             }
         }
 
@@ -196,7 +200,7 @@ fun Dashboard(
                             Text(preset.layout.description, style = MaterialTheme.typography.caption)
                         }
                         Button(onClick = {
-                            onExecuteAction { currentStatus ->
+                            onExecuteAction(safeMode) { currentStatus ->
                                 if (currentStatus?.layout != preset.layout) {
                                     controller.setLayout(preset.layout)
                                     kotlinx.coroutines.delay(4000)
@@ -300,6 +304,7 @@ fun OnboardingWizard(onOpenSettings: () -> Unit, onCheckAgain: () -> Unit) {
 fun SettingsModal(config: AppConfig, onSave: (AppConfig) -> Unit) {
     var ddcPath by remember { mutableStateOf(config.ddcutilPath) }
     var bdPath by remember { mutableStateOf(config.betterdisplaycliPath) }
+    var enableCountdown by remember { mutableStateOf(config.enableSafetyCountdown) }
 
     Column(modifier = Modifier.padding(24.dp).fillMaxSize()) {
         Text("Settings", style = MaterialTheme.typography.h5)
@@ -319,12 +324,26 @@ fun SettingsModal(config: AppConfig, onSave: (AppConfig) -> Unit) {
             label = { Text("macOS: betterdisplaycli executable path") },
             modifier = Modifier.fillMaxWidth()
         )
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(
+                checked = enableCountdown,
+                onCheckedChange = { enableCountdown = it }
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Enable Safety Countdown (auto-revert changes)")
+        }
         
         Spacer(modifier = Modifier.weight(1f))
         
         Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
             Button(onClick = {
-                onSave(config.copy(ddcutilPath = ddcPath, betterdisplaycliPath = bdPath))
+                onSave(config.copy(
+                    ddcutilPath = ddcPath,
+                    betterdisplaycliPath = bdPath,
+                    enableSafetyCountdown = enableCountdown
+                ))
             }) {
                 Text("Save Configuration")
             }

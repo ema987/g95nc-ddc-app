@@ -75,5 +75,6 @@ data class Preset(
 data class AppConfig(
     val presets: List<Preset> = emptyList(),
     val ddcutilPath: String = "ddcutil",
-    val betterdisplaycliPath: String = "betterdisplaycli"
+    val betterdisplaycliPath: String = "betterdisplaycli",
+    val enableSafetyCountdown: Boolean = true
 )

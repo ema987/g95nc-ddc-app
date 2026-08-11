@@ -124,7 +124,7 @@ fun main() = application {
                             controller.setAudioSource(preset.audioSource)
                         }
                         status = controller.getStatus()
-                        if (currentStatus != null) {
+                        if (currentStatus != null && ConfigManager.config.enableSafetyCountdown) {
                             pendingChange = PendingChange(currentStatus, 10)
                         }
                     }
@@ -188,13 +188,13 @@ fun main() = application {
                                     }
                                 }
                             },
-                            onExecuteAction = { action ->
+                            onExecuteAction = { safeMode, action ->
                                 scope.launch {
                                     val currentStatus = status
                                     status = null
                                     action(currentStatus)
                                     status = controller.getStatus()
-                                    if (currentStatus != null) {
+                                    if (currentStatus != null && safeMode) {
                                         pendingChange = PendingChange(currentStatus, 15)
                                     }
                                 }

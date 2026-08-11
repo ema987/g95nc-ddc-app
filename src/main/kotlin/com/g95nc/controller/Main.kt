@@ -33,9 +33,7 @@ fun main() = application {
 
     LaunchedEffect(controller) {
         isToolAvailable = controller.isToolAvailable()
-        if (isToolAvailable) {
-            status = controller.getStatus()
-        } else {
+        if (!isToolAvailable) {
             isSettingsOpen = true // Force onboarding
         }
     }
@@ -83,12 +81,12 @@ fun main() = application {
     LaunchedEffect(status, isDashboardOpen, isToolAvailable) {
         if (isDashboardOpen && isToolAvailable && status == null && pendingChange == null) {
             while (true) {
-                delay(3000)
                 val newStatus = controller.getStatus()
                 if (newStatus != null) {
                     status = newStatus
                     break
                 }
+                delay(3000)
             }
         }
     }

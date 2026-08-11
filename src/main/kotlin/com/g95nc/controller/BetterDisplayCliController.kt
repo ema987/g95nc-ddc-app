@@ -24,9 +24,18 @@ class BetterDisplayCliController(private var exePath: String) : MonitorControlle
         return try {
             val output = ProcessUtils.runCommand(listOf(exePath, "get", "--identifiers"))
             java.io.File("cli_debug.log").appendText("Identifiers output length: ${output.length}, output: [$output]\n")
-            cachedTagId = parseIdentifiersOutput(output)
-            java.io.File("cli_debug.log").appendText("Parsed tagID: $cachedTagId\n")
-            cachedTagId
+            val tags = parseAllIdentifiersOutput(output)
+            java.io.File("cli_debug.log").appendText("Parsed tags: $tags\n")
+            
+            for (tag in tags) {
+                val testOutput = ProcessUtils.runCommand(listOf(exePath, "get", "--tagID=$tag", "--feature=ddcAlt", "--vcp=0xE2"))
+                if (parseVcpOutput(testOutput) != null) {
+                    cachedTagId = tag
+                    java.io.File("cli_debug.log").appendText("Selected working tag: $tag\n")
+                    return tag
+                }
+            }
+            null
         } catch (e: Exception) {
             e.printStackTrace()
             null
@@ -55,11 +64,12 @@ class BetterDisplayCliController(private var exePath: String) : MonitorControlle
     }
     
     companion object {
-        fun parseIdentifiersOutput(output: String): String? {
+        fun parseAllIdentifiersOutput(output: String): List<String> {
             val blocks = output.split(Regex("\\},\\{"))
-            val g95ncBlock = blocks.find { it.contains("G95NC", ignoreCase = true) } ?: return null
-            val match = Regex(""""tagID"\s*:\s*"(-?\d+)"""").find(g95ncBlock)
-            return match?.groupValues?.get(1)
+            val g95ncBlocks = blocks.filter { it.contains("G95NC", ignoreCase = true) }
+            return g95ncBlocks.mapNotNull { block ->
+                Regex(""""tagID"\s*:\s*"(-?\d+)"""").find(block)?.groupValues?.get(1)
+            }
         }
         
         fun parseVcpOutput(output: String): Int? {

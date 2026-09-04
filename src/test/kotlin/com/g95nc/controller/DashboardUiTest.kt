@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -235,6 +236,65 @@ class DashboardUiTest {
         assertEquals(Layout.OFF, saved?.layout)
         assertEquals(SourceCode.DP, saved?.paneSources?.get(PaneChannel.PANE_1))
         assertEquals(3, saved?.audioSource)
+    }
+
+    @Test
+    fun testActivePresetBadge_showsOnlyOnThePresetMatchingCurrentStatus() {
+        val matching = Preset(id = "p1", name = "Matches", layout = Layout.OFF, paneSources = mapOf(PaneChannel.PANE_1 to SourceCode.HDMI1))
+        val other = Preset(id = "p2", name = "Different", layout = Layout.OFF, paneSources = mapOf(PaneChannel.PANE_1 to SourceCode.DP))
+        setDashboard(
+            status = status(Layout.OFF, mapOf(PaneChannel.PANE_1 to SourceCode.HDMI1)),
+            config = AppConfig(presets = listOf(matching, other))
+        )
+
+        composeRule.onAllNodesWithText("Active").assertCountEquals(1)
+    }
+
+    @Test
+    fun testActivePresetBadge_absentWhenNoPresetMatchesCurrentStatus() {
+        val preset = Preset(id = "p1", name = "NotActive", layout = Layout.OFF, paneSources = mapOf(PaneChannel.PANE_1 to SourceCode.DP))
+        setDashboard(
+            status = status(Layout.OFF, mapOf(PaneChannel.PANE_1 to SourceCode.HDMI1)),
+            config = AppConfig(presets = listOf(preset))
+        )
+
+        composeRule.onAllNodesWithText("Active").assertCountEquals(0)
+    }
+
+    @Test
+    fun testPresetReorder_moveDownSwapsWithTheNextPreset() {
+        val a = Preset(id = "1", name = "A", layout = Layout.OFF, paneSources = emptyMap())
+        val b = Preset(id = "2", name = "B", layout = Layout.OFF, paneSources = emptyMap())
+        var reported: AppConfig? = null
+        setDashboard(config = AppConfig(presets = listOf(a, b)), onConfigChange = { reported = it })
+
+        composeRule.onAllNodesWithContentDescription("Move preset down")[0].performScrollTo().performClick()
+
+        assertEquals(listOf("2", "1"), reported?.presets?.map { it.id })
+    }
+
+    @Test
+    fun testPresetReorder_moveUpSwapsWithThePreviousPreset() {
+        val a = Preset(id = "1", name = "A", layout = Layout.OFF, paneSources = emptyMap())
+        val b = Preset(id = "2", name = "B", layout = Layout.OFF, paneSources = emptyMap())
+        var reported: AppConfig? = null
+        setDashboard(config = AppConfig(presets = listOf(a, b)), onConfigChange = { reported = it })
+
+        composeRule.onAllNodesWithContentDescription("Move preset up")[1].performScrollTo().performClick()
+
+        assertEquals(listOf("2", "1"), reported?.presets?.map { it.id })
+    }
+
+    @Test
+    fun testPresetReorder_boundaryButtonsAreDisabled() {
+        val a = Preset(id = "1", name = "A", layout = Layout.OFF, paneSources = emptyMap())
+        val b = Preset(id = "2", name = "B", layout = Layout.OFF, paneSources = emptyMap())
+        setDashboard(config = AppConfig(presets = listOf(a, b)))
+
+        composeRule.onAllNodesWithContentDescription("Move preset up")[0].performScrollTo().assertIsNotEnabled()
+        composeRule.onAllNodesWithContentDescription("Move preset down")[1].performScrollTo().assertIsNotEnabled()
+        composeRule.onAllNodesWithContentDescription("Move preset down")[0].performScrollTo().assertIsEnabled()
+        composeRule.onAllNodesWithContentDescription("Move preset up")[1].performScrollTo().assertIsEnabled()
     }
 
     @Test

@@ -5,9 +5,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
@@ -235,13 +239,32 @@ fun Dashboard(
                     )
                 }
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    config.presets.forEach { preset ->
+                    config.presets.forEachIndexed { index, preset ->
                         Column(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                if (renamingPresetId != preset.id) {
+                                    Column {
+                                        IconButton(
+                                            onClick = { onConfigChange(config.copy(presets = config.presets.movedUp(preset.id))) },
+                                            enabled = !isBusy && index > 0,
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Move preset up", modifier = Modifier.size(16.dp))
+                                        }
+                                        IconButton(
+                                            onClick = { onConfigChange(config.copy(presets = config.presets.movedDown(preset.id))) },
+                                            enabled = !isBusy && index < config.presets.lastIndex,
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Move preset down", modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                }
                                 if (renamingPresetId == preset.id) {
                                     OutlinedTextField(
                                         value = renamePresetText,
@@ -262,7 +285,23 @@ fun Dashboard(
                                     }
                                 } else {
                                     Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                                        Text(preset.name, style = MaterialTheme.typography.bodyLarge)
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(preset.name, style = MaterialTheme.typography.bodyLarge)
+                                            if (preset.matchesStatus(status)) {
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Surface(
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    shape = MaterialTheme.shapes.small
+                                                ) {
+                                                    Text(
+                                                        "Active",
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onPrimary
+                                                    )
+                                                }
+                                            }
+                                        }
                                         Text(
                                             preset.layout.description,
                                             style = MaterialTheme.typography.labelSmall,
@@ -428,29 +467,80 @@ fun OnboardingWizard(onOpenSettings: () -> Unit, onCheckAgain: () -> Unit) {
 }
 
 @Composable
-fun SettingsModal(config: AppConfig, onSave: (AppConfig) -> Unit) {
+fun SettingsModal(
+    config: AppConfig,
+    onSave: (AppConfig) -> Unit,
+    commandRunner: CommandRunner = ProcessUtils
+) {
     var ddcPath by remember { mutableStateOf(config.ddcutilPath) }
     var bdPath by remember { mutableStateOf(config.betterdisplaycliPath) }
     var enableCountdown by remember { mutableStateOf(config.enableSafetyCountdown) }
+    var ddcTestResult by remember { mutableStateOf<Boolean?>(null) }
+    var bdTestResult by remember { mutableStateOf<Boolean?>(null) }
+    var isTestingDdc by remember { mutableStateOf(false) }
+    var isTestingBd by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     Column(modifier = Modifier.padding(24.dp).fillMaxSize()) {
         Text("Settings", style = MaterialTheme.typography.titleLarge)
         Spacer(modifier = Modifier.height(24.dp))
 
-        OutlinedTextField(
-            value = ddcPath,
-            onValueChange = { ddcPath = it },
-            label = { Text("Linux: ddcutil executable path") },
-            modifier = Modifier.fillMaxWidth().testTag("ddcutilPathField")
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            OutlinedTextField(
+                value = ddcPath,
+                onValueChange = { ddcPath = it; ddcTestResult = null },
+                label = { Text("Linux: ddcutil executable path") },
+                modifier = Modifier.weight(1f).testTag("ddcutilPathField")
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            if (isTestingDdc) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            } else {
+                TextButton(onClick = {
+                    scope.launch {
+                        isTestingDdc = true
+                        ddcTestResult = isToolReachable(commandRunner, ddcPath, listOf("--version"))
+                        isTestingDdc = false
+                    }
+                }) {
+                    Text("Test")
+                }
+            }
+            when (ddcTestResult) {
+                true -> Icon(Icons.Default.CheckCircle, contentDescription = "ddcutil path is reachable", tint = AppColors.signalActive)
+                false -> Icon(Icons.Default.Error, contentDescription = "ddcutil path is not reachable", tint = MaterialTheme.colorScheme.error)
+                null -> {}
+            }
+        }
         Spacer(modifier = Modifier.height(16.dp))
 
-        OutlinedTextField(
-            value = bdPath,
-            onValueChange = { bdPath = it },
-            label = { Text("macOS: betterdisplaycli executable path") },
-            modifier = Modifier.fillMaxWidth().testTag("betterdisplaycliPathField")
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            OutlinedTextField(
+                value = bdPath,
+                onValueChange = { bdPath = it; bdTestResult = null },
+                label = { Text("macOS: betterdisplaycli executable path") },
+                modifier = Modifier.weight(1f).testTag("betterdisplaycliPathField")
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            if (isTestingBd) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            } else {
+                TextButton(onClick = {
+                    scope.launch {
+                        isTestingBd = true
+                        bdTestResult = isToolReachable(commandRunner, bdPath, listOf("-v"))
+                        isTestingBd = false
+                    }
+                }) {
+                    Text("Test")
+                }
+            }
+            when (bdTestResult) {
+                true -> Icon(Icons.Default.CheckCircle, contentDescription = "betterdisplaycli path is reachable", tint = AppColors.signalActive)
+                false -> Icon(Icons.Default.Error, contentDescription = "betterdisplaycli path is not reachable", tint = MaterialTheme.colorScheme.error)
+                null -> {}
+            }
+        }
         Spacer(modifier = Modifier.height(16.dp))
 
         Row(verticalAlignment = Alignment.CenterVertically) {

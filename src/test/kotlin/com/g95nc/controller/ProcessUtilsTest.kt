@@ -57,4 +57,22 @@ class ProcessUtilsTest {
         val output = ProcessUtils.run(listOf("/bin/echo", "hello"))
         assertEquals("hello", output)
     }
+
+    @Test
+    fun testIsToolReachable_trueWhenCommandSucceedsWithOutput() = runBlocking {
+        val runner = FakeCommandRunner { "ddcutil 2.1.0" }
+        assertTrue(isToolReachable(runner, "ddcutil", listOf("--version")))
+    }
+
+    @Test
+    fun testIsToolReachable_falseWhenCommandThrows() = runBlocking {
+        val runner = FakeCommandRunner { throw RuntimeException("No such file or directory") }
+        assertEquals(false, isToolReachable(runner, "/bad/path", listOf("--version")))
+    }
+
+    @Test
+    fun testIsToolReachable_falseWhenCommandSucceedsButPrintsNothing() = runBlocking {
+        val runner = FakeCommandRunner { "" }
+        assertEquals(false, isToolReachable(runner, "ddcutil", listOf("--version")))
+    }
 }

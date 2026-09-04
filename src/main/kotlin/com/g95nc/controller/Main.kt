@@ -128,6 +128,7 @@ fun main() = application {
         Window(
             onCloseRequest = { isDashboardOpen = false },
             title = "G95NC Controller",
+            icon = AppIconPainter,
             state = rememberWindowState(width = 680.dp, height = 920.dp)
         ) {
             AppTheme {
@@ -212,6 +213,7 @@ fun main() = application {
         Window(
             onCloseRequest = { isSettingsOpen = false },
             title = "Settings & Tools",
+            icon = AppIconPainter,
             state = rememberWindowState(width = 500.dp, height = 400.dp)
         ) {
             AppTheme {
@@ -226,10 +228,4 @@ fun main() = application {
             }
         }
     }
-}
-
-// Placeholder empty icon
-val TrayIcon = object : androidx.compose.ui.graphics.painter.Painter() {
-    override val intrinsicSize = androidx.compose.ui.geometry.Size(24f, 24f)
-    override fun androidx.compose.ui.graphics.drawscope.DrawScope.onDraw() {}
 }

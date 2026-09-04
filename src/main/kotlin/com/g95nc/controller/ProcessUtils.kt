@@ -43,3 +43,13 @@ object ProcessUtils : CommandRunner {
         }
     }
 }
+
+/** Whether running `<path> <versionArgs>` succeeds and prints something - the same check
+ * DdcutilController/BetterDisplayCliController use for isToolAvailable(), exposed standalone so
+ * the Settings screen can validate a path before the user ever tries to use it for real. */
+suspend fun isToolReachable(commandRunner: CommandRunner, path: String, versionArgs: List<String>): Boolean =
+    try {
+        commandRunner.run(listOf(path) + versionArgs, timeoutMillis = 3000).isNotEmpty()
+    } catch (e: Exception) {
+        false
+    }

@@ -64,13 +64,16 @@ fun LayoutDiagram(
             .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
             .padding(8.dp)
     ) {
+        val slots = paneSlotsFor(layout)
+
         when {
             layout == null || layout == Layout.OFF ->
-                PaneCell(paneSources[PaneChannel.PANE_1], modifier = Modifier.fillMaxSize())
+                PaneCell(slots[0].second, paneSources[PaneChannel.PANE_1], modifier = Modifier.fillMaxSize())
 
             layout == Layout.PIP -> {
-                PaneCell(paneSources[PaneChannel.PANE_1], modifier = Modifier.fillMaxSize())
+                PaneCell(slots[0].second, paneSources[PaneChannel.PANE_1], modifier = Modifier.fillMaxSize())
                 PaneCell(
+                    slots.getOrNull(1)?.second ?: "Sub",
                     paneSources[PaneChannel.PANE_2],
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
@@ -84,17 +87,17 @@ fun LayoutDiagram(
             layout.name.startsWith("PBP_3") -> {
                 val weights = layoutPaneWeights[layout] ?: listOf(1f, 1f, 1f)
                 Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    PaneCell(paneSources[PaneChannel.PANE_1], Modifier.weight(weights[0]).fillMaxHeight())
-                    PaneCell(paneSources[PaneChannel.PANE_2], Modifier.weight(weights[1]).fillMaxHeight())
-                    PaneCell(paneSources[PaneChannel.PANE_3], Modifier.weight(weights[2]).fillMaxHeight())
+                    PaneCell(slots[0].second, paneSources[PaneChannel.PANE_1], Modifier.weight(weights[0]).fillMaxHeight())
+                    PaneCell(slots[1].second, paneSources[PaneChannel.PANE_2], Modifier.weight(weights[1]).fillMaxHeight())
+                    PaneCell(slots[2].second, paneSources[PaneChannel.PANE_3], Modifier.weight(weights[2]).fillMaxHeight())
                 }
             }
 
             else -> {
                 val weights = layoutPaneWeights[layout] ?: listOf(1f, 1f)
                 Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    PaneCell(paneSources[PaneChannel.PANE_1], Modifier.weight(weights[0]).fillMaxHeight())
-                    PaneCell(paneSources[PaneChannel.PANE_2], Modifier.weight(weights[1]).fillMaxHeight())
+                    PaneCell(slots[0].second, paneSources[PaneChannel.PANE_1], Modifier.weight(weights[0]).fillMaxHeight())
+                    PaneCell(slots[1].second, paneSources[PaneChannel.PANE_2], Modifier.weight(weights[1]).fillMaxHeight())
                 }
             }
         }
@@ -102,7 +105,7 @@ fun LayoutDiagram(
 }
 
 @Composable
-private fun PaneCell(source: SourceCode?, modifier: Modifier, emphasized: Boolean = false) {
+private fun PaneCell(label: String, source: SourceCode?, modifier: Modifier, emphasized: Boolean = false) {
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
@@ -119,6 +122,12 @@ private fun PaneCell(source: SourceCode?, modifier: Modifier, emphasized: Boolea
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+            Spacer(Modifier.height(6.dp))
             Icon(
                 imageVector = source?.let { sourceIcon(it) } ?: Icons.Default.QuestionMark,
                 contentDescription = null,

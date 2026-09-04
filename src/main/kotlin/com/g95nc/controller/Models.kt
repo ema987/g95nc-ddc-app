@@ -84,6 +84,30 @@ fun List<Preset>.withoutPreset(id: String): List<Preset> = filterNot { it.id == 
 fun List<Preset>.renamed(id: String, newName: String): List<Preset> =
     map { if (it.id == id) it.copy(name = newName) else it }
 
+/** Moves the preset with this id one position earlier; a no-op if it's missing or already first. */
+fun List<Preset>.movedUp(id: String): List<Preset> {
+    val index = indexOfFirst { it.id == id }
+    if (index <= 0) return this
+    return toMutableList().apply { add(index - 1, removeAt(index)) }
+}
+
+/** Moves the preset with this id one position later; a no-op if it's missing or already last. */
+fun List<Preset>.movedDown(id: String): List<Preset> {
+    val index = indexOfFirst { it.id == id }
+    if (index == -1 || index >= size - 1) return this
+    return toMutableList().apply { add(index + 1, removeAt(index)) }
+}
+
+/**
+ * Whether the monitor is currently sitting exactly on this preset - layout and every pane source
+ * must match; audio only has to match if the preset actually pins one (null means "don't care",
+ * consistent with how applying a preset already treats a null audioSource).
+ */
+fun Preset.matchesStatus(status: MonitorStatus): Boolean =
+    layout == status.layout &&
+        paneSources == status.paneSources &&
+        (audioSource == null || audioSource == status.audioSource)
+
 /** Which pane channels a layout uses, and what to call each one - the single source of truth for
  * pane labeling, shared by the source-routing controls, the layout diagram, and preset display. */
 fun paneSlotsFor(layout: Layout?): List<Pair<PaneChannel, String>> = when {

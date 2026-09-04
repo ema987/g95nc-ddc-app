@@ -1,50 +1,42 @@
 # Packaging assets
 
-`icon.icns` (macOS) and `icon.png` (Linux) are generated, not hand-drawn - they render the same
-glyph as `AppIcon.kt`'s `renderAppIconImage()`/`drawScreenGlyph()` (a rounded "screen" split into
-two panes), just via a throwaway `java.awt.Graphics2D` program instead of Compose, since the
-packaging tools need plain raster images rather than a Compose `Painter`.
+`icon.icns` (macOS), `icon.png` (Linux) and `icon.ico` (Windows) are generated, not hand-drawn -
+they render the same glyph as `AppIcon.kt`'s `renderAppIconImage()`/`drawScreenGlyph()` (a rounded
+"screen" split into a white pane and a teal pane), just via a throwaway `java.awt.Graphics2D`
+program instead of Compose, since the packaging tools need plain raster images rather than a
+Compose `Painter`.
 
-**Windows is missing `icon.ico`.** Java's built-in ImageIO can't write the ICO format, and there
-was no Windows environment available to verify one. Until that's added, `packageMsi` falls back
-to Compose Desktop's own default icon.
-
-## TODO on Windows
-
-1. **Generate `icon.ico`.** Windows `.ico` needs multiple resolutions bundled into one file
-   (16/32/48/256 at minimum) - ImageIO can't write that format on any platform, so it has to be
-   built with a Windows-side tool once there's a machine to do it on. Two options:
-   - ImageMagick: `magick icon_16.png icon_32.png icon_48.png icon_256.png icon.ico` (generate the
-     PNGs first at those four sizes using the same `IconGen.java` recipe above - just skip the
-     `.iconset`/`iconutil` steps, they're macOS-only).
-   - Python + Pillow: `Image.open("icon_256.png").save("icon.ico", sizes=[(16,16),(32,32),(48,48),(256,256)])`.
-2. **Wire it up** in `build.gradle.kts`, inside `nativeDistributions`:
-   ```kotlin
-   windows {
-       iconFile.set(project.file("packaging/icon.ico"))
-   }
-   ```
-3. **Verify `packageMsi`** actually picks it up and shows the right icon/name in the Start Menu
-   and taskbar. The app's display name there already comes from the top-level `packageName` (no
-   Windows-specific name override was needed for macOS's problem - that was a macOS-only quirk),
-   so this should be icon-only work.
+`icon.ico` was built with ImageMagick (`brew install imagemagick`) on macOS - ImageMagick and
+Pillow both run fine cross-platform, so producing a valid Windows `.ico` never actually required a
+Windows machine, just a tool that can write that format (the JDK's own ImageIO can't). It has not
+been verified on a real Windows box that `packageMsi` picks it up correctly and shows the right
+icon/name in the Start Menu and taskbar - the app's display name there already comes from the
+top-level `packageName` (no Windows-specific name override was needed for macOS's Dock/About
+problem - that was a macOS-only quirk), so if something's off it should just be icon wiring, not
+naming.
 
 ## Building a real .app/.dmg (not just `./gradlew run`)
 
 `./gradlew packageDistributionForCurrentOS` (or `packageDmg`) needs a full JDK with `jpackage` -
 the JetBrains Runtime bundled with Android Studio doesn't include it (`checkRuntime` fails with
-"'jpackage' is missing" if that's the JDK Gradle is running on). To fix: install a full JDK 21
-(matching this project's `jvmToolchain(21)`) - e.g. `brew install openjdk@21`, or download
-Temurin/Zulu 21 - and point `JAVA_HOME` at it before running the packaging task, e.g.:
+"'jpackage' is missing" if that's the JDK Gradle is running on).
+
+**`brew install openjdk@21` works but Compose Desktop actively warns against it**
+(`compose-multiplatform#3107`) - it fails `checkRuntime` with "Homebrew's JDK distribution may
+cause issues with packaging" unless you pass `-Pcompose.desktop.packaging.checkJdkVendor=false`.
+Tested with that flag this session: `packageDmg` completed and the resulting `.app` launched and
+ran correctly, but that's one build on one machine, not a guarantee the known issue never bites -
+worth treating a Homebrew-JDK-built artifact as fine for local testing, not as the thing you'd
+ship. For a distribution build, Compose recommends a different vendor (e.g. Amazon Corretto -
+`brew install --cask corretto@21`, which needs sudo/your password to install into
+`/Library/Java/JavaVirtualMachines`, so it can't be done unattended).
 
 ```bash
-JAVA_HOME=$(/usr/libexec/java_home -v 21) ./gradlew packageDmg
+JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew packageDmg -Pcompose.desktop.packaging.checkJdkVendor=false
 ```
 
-Once that works, that's also the point to confirm the things that couldn't be verified from this
-sandboxed dev environment: the Dock icon/tooltip and the "About G95NC Controller" panel on a real,
-properly-bundled `.app` (as opposed to the `./gradlew run` dev-mode approximation via
-`-Xdock:icon=`/`-Xdock:name=` and `java.awt.Taskbar`/`Desktop.setAboutHandler`).
+Once you have a proper JDK (Corretto or similar) without that warning, drop the
+`-Pcompose.desktop.packaging.checkJdkVendor=false` flag and point `JAVA_HOME` at it instead.
 
 ## Regenerating (e.g. after a palette change in `AppColors`)
 
@@ -89,9 +81,17 @@ for spec in 16:icon_16x16 32:icon_16x16@2x 32:icon_32x32 64:icon_32x32@2x \
   size="${spec%%:*}"; name="${spec#*:}"
   java -Djava.awt.headless=true IconGen "$size" "icon.iconset/${name}.png"
 done
+
+# macOS: bundle into .icns
 iconutil -c icns icon.iconset -o icon.icns
 
+# Linux: a single large PNG
 java -Djava.awt.headless=true IconGen 1024 icon.png
+
+# Windows: bundle a few sizes into one multi-resolution .ico (needs ImageMagick: brew install
+# imagemagick, or apt/dnf equivalent - or Pillow: Image.open(...).save("icon.ico", sizes=[...]))
+magick icon.iconset/icon_16x16.png icon.iconset/icon_32x32.png \
+       icon.iconset/icon_128x128.png icon.iconset/icon_256x256.png icon.ico
 ```
 
-Then copy `icon.icns` and `icon.png` here, overwriting the existing ones.
+Then copy `icon.icns`, `icon.png` and `icon.ico` here, overwriting the existing ones.

@@ -49,33 +49,36 @@ compose.desktop {
         mainClass = "com.g95nc.controller.MainKt"
         nativeDistributions {
             targetFormats(org.jetbrains.compose.desktop.application.dsl.TargetFormat.Dmg, org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi, org.jetbrains.compose.desktop.application.dsl.TargetFormat.Deb)
-            // The artifact/folder name (kept kebab-case: it ends up in .dmg/.deb/.msi filenames
-            // and Linux .deb package names are picky about spaces/casing).
-            packageName = "g95nc-ddc-app"
+            // This becomes jpackage's --name: the actual .app bundle folder name (which is what
+            // Finder/Spotlight/Dock display - CFBundleDisplayName does NOT override it, despite
+            // documentation suggesting otherwise; confirmed by inspecting the real jpackage
+            // invocation Gradle builds, not just reading the DSL). Also the Start Menu/taskbar
+            // name on Windows. A space here is fine on both platforms.
+            packageName = appDisplayName
             packageVersion = appVersion
 
             macOS {
-                // Overrides packageName above just for macOS: this is what Finder, the Dock tile
-                // tooltip, and the "About <Name>" panel actually display, none of which want the
-                // kebab-case artifact name.
+                // NOT the same as the top-level packageName above despite the identical property
+                // name on this nested type - this one maps to jpackage's --mac-package-name,
+                // which only sets CFBundleDisplayName (a real field, just not the one Finder
+                // reads for its label). Set anyway since it's free and correct.
                 packageName = appDisplayName
                 dockName = appDisplayName
                 bundleID = "com.g95nc.controller"
                 iconFile.set(project.file("packaging/icon.icns"))
-                infoPlist {
-                    extraKeysRawXml = """
-                        <key>CFBundleDisplayName</key>
-                        <string>$appDisplayName</string>
-                    """.trimIndent()
-                }
             }
             linux {
+                // Linux's own packageName maps to --linux-package-name - the Debian control
+                // file's "Package:" field, which must be lowercase/no-spaces unlike the
+                // human-readable top-level name above.
+                packageName = "g95nc-ddc-app"
                 iconFile.set(project.file("packaging/icon.png"))
             }
-            // Windows needs a .ico, which isn't generated yet (see packaging/README.md) - the
-            // Msi build falls back to Compose Desktop's own default icon until that's added.
-            // The taskbar/Start Menu display name there already comes from packageName above,
-            // no Windows-specific override needed once the icon exists.
+            windows {
+                iconFile.set(project.file("packaging/icon.ico"))
+            }
+            // Untested on an actual Windows machine (built here on macOS with ImageMagick, no
+            // Windows box available) - see packaging/README.md.
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.g95nc.controller
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -19,18 +20,23 @@ private val singleInstanceLock = SingleInstanceLock(
     java.io.File(System.getProperty("user.home"), ".config/g95nc-controller/app.lock")
 )
 
+// Set by the macOS "About G95NC Controller" menu item's handler (registered in main(), fires on
+// an AWT/AppKit callback outside Compose's composition) so runMainApplication() can show it.
+private var showAboutDialog by mutableStateOf(false)
+
 fun main() {
     // Must be set (and the Dock icon applied) before any AWT/Swing/Compose window is created -
     // macOS otherwise shows the JVM's main class name ("MainKt") and the default Java icon for a
     // plain, unpackaged java process.
-    System.setProperty("apple.awt.application.name", "G95NC Controller")
+    System.setProperty("apple.awt.application.name", AppInfo.NAME)
     applyRuntimeDockIcon()
+    registerAboutHandler { showAboutDialog = true }
 
     // Two instances polling the same ddcutil/betterdisplaycli channel contend with each other
     // and produce the exact DDC/IPC timeouts this app exists to avoid - so only one may run.
     if (!singleInstanceLock.acquire()) {
         singleWindowApplication(
-            title = "G95NC Controller",
+            title = AppInfo.NAME,
             icon = AppIconPainter,
             state = WindowState(width = 420.dp, height = 220.dp),
             resizable = false
@@ -45,7 +51,7 @@ fun main() {
                         Text("Already Running", style = MaterialTheme.typography.titleLarge)
                         Spacer(Modifier.height(12.dp))
                         Text(
-                            "G95NC Controller is already running. Check your menu bar / system tray.",
+                            "${AppInfo.NAME} is already running. Check your menu bar / system tray.",
                             textAlign = TextAlign.Center
                         )
                         Spacer(Modifier.height(20.dp))
@@ -63,6 +69,56 @@ fun main() {
 
     application {
         runMainApplication()
+    }
+}
+
+/** Registers a custom macOS "About G95NC Controller" panel in place of the generic default Java
+ * one. Best-effort: platforms/JDKs without Desktop.Action.APP_ABOUT just keep no About item. */
+private fun registerAboutHandler(onAboutRequested: () -> Unit) {
+    try {
+        if (java.awt.Desktop.isDesktopSupported()) {
+            val desktop = java.awt.Desktop.getDesktop()
+            if (desktop.isSupported(java.awt.Desktop.Action.APP_ABOUT)) {
+                desktop.setAboutHandler { onAboutRequested() }
+            }
+        }
+    } catch (e: Exception) {
+        // Cosmetic only - never worth blocking startup over.
+    }
+}
+
+@Composable
+private fun AboutDialog(onDismiss: () -> Unit) {
+    Window(
+        onCloseRequest = onDismiss,
+        title = "About ${AppInfo.NAME}",
+        icon = AppIconPainter,
+        state = rememberWindowState(width = 360.dp, height = 280.dp),
+        resizable = false
+    ) {
+        AppTheme {
+            Surface(modifier = Modifier.fillMaxSize()) {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(24.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Image(painter = AppIconPainter, contentDescription = null, modifier = Modifier.size(72.dp))
+                    Spacer(Modifier.height(16.dp))
+                    Text(AppInfo.NAME, style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Version ${AppInfo.VERSION}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(20.dp))
+                    Button(onClick = onDismiss) {
+                        Text("OK")
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -182,7 +238,7 @@ private fun ApplicationScope.runMainApplication() {
     if (isDashboardOpen) {
         Window(
             onCloseRequest = { isDashboardOpen = false },
-            title = "G95NC Controller",
+            title = AppInfo.NAME,
             icon = AppIconPainter,
             state = rememberWindowState(width = 680.dp, height = 920.dp)
         ) {
@@ -282,5 +338,9 @@ private fun ApplicationScope.runMainApplication() {
                 )
             }
         }
+    }
+
+    if (showAboutDialog) {
+        AboutDialog(onDismiss = { showAboutDialog = false })
     }
 }

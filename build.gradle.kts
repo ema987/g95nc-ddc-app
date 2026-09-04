@@ -45,6 +45,15 @@ compose.desktop {
             targetFormats(org.jetbrains.compose.desktop.application.dsl.TargetFormat.Dmg, org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi, org.jetbrains.compose.desktop.application.dsl.TargetFormat.Deb)
             packageName = "g95nc-ddc-app"
             packageVersion = "1.0.0"
+
+            macOS {
+                iconFile.set(project.file("packaging/icon.icns"))
+            }
+            linux {
+                iconFile.set(project.file("packaging/icon.png"))
+            }
+            // Windows needs a .ico, which isn't generated yet (see packaging/README.md) - the
+            // Msi build falls back to Compose Desktop's own default icon until that's added.
         }
     }
 }

@@ -1,9 +1,14 @@
 package com.g95nc.controller
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.*
 import kotlinx.coroutines.launch
@@ -15,15 +20,44 @@ private val singleInstanceLock = SingleInstanceLock(
 )
 
 fun main() {
+    // Must be set (and the Dock icon applied) before any AWT/Swing/Compose window is created -
+    // macOS otherwise shows the JVM's main class name ("MainKt") and the default Java icon for a
+    // plain, unpackaged java process.
+    System.setProperty("apple.awt.application.name", "G95NC Controller")
+    applyRuntimeDockIcon()
+
     // Two instances polling the same ddcutil/betterdisplaycli channel contend with each other
     // and produce the exact DDC/IPC timeouts this app exists to avoid - so only one may run.
     if (!singleInstanceLock.acquire()) {
-        javax.swing.JOptionPane.showMessageDialog(
-            null,
-            "G95NC Controller is already running. Check your menu bar / system tray.",
-            "Already Running",
-            javax.swing.JOptionPane.INFORMATION_MESSAGE
-        )
+        singleWindowApplication(
+            title = "G95NC Controller",
+            icon = AppIconPainter,
+            state = WindowState(width = 420.dp, height = 220.dp),
+            resizable = false
+        ) {
+            AppTheme {
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(24.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("Already Running", style = MaterialTheme.typography.titleLarge)
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            "G95NC Controller is already running. Check your menu bar / system tray.",
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(20.dp))
+                        Button(onClick = {
+                            window.dispatchEvent(java.awt.event.WindowEvent(window, java.awt.event.WindowEvent.WINDOW_CLOSING))
+                        }) {
+                            Text("OK")
+                        }
+                    }
+                }
+            }
+        }
         return
     }
 

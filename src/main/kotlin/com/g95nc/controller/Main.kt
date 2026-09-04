@@ -50,27 +50,18 @@ fun main() = application {
             // LAUNCH IN SCOPE SO IT SURVIVES PENDINGCHANGE=NULL
             scope.launch {
                 val currentStatus = status
-                val targetLayout = change.previousStatus.layout
-                val needsLayoutRevert = targetLayout != null && targetLayout != currentStatus?.layout
-                
+
                 pendingChange = null
                 status = null // Show spinner
-                
-                if (needsLayoutRevert) {
-                    controller.setLayout(targetLayout!!)
-                    delay(4000) // Layout change resets DDC stack, wait before sending sources
-                }
-                change.previousStatus.paneSources.forEach { (channel, source) ->
-                    if (currentStatus?.paneSources?.get(channel) != source) {
-                        if (targetLayout == Layout.OFF && channel == PaneChannel.PANE_1) {
-                            controller.setMainSource(source)
-                        } else {
-                            controller.setSource(channel, source)
-                        }
-                        delay(4000) // Source change triggers HDMI handshake, wait before next command
-                    }
-                }
-                
+
+                MonitorActions.applyTarget(
+                    controller = controller,
+                    currentStatus = currentStatus,
+                    targetLayout = change.previousStatus.layout,
+                    targetPaneSources = change.previousStatus.paneSources,
+                    targetAudioSource = change.previousStatus.audioSource
+                )
+
                 status = controller.getStatus()
             }
         }
@@ -104,23 +95,15 @@ fun main() = application {
                     scope.launch {
                         val currentStatus = status
                         status = null
-                        if (currentStatus?.layout != preset.layout) {
-                            controller.setLayout(preset.layout)
-                            delay(4000)
-                        }
-                        preset.paneSources.forEach { (channel, source) ->
-                            if (currentStatus?.paneSources?.get(channel) != source) {
-                                if (preset.layout == Layout.OFF && channel == PaneChannel.PANE_1) {
-                                    controller.setMainSource(source)
-                                } else {
-                                    controller.setSource(channel, source)
-                                }
-                                delay(4000)
-                            }
-                        }
-                        if (preset.audioSource != null && currentStatus?.audioSource != preset.audioSource) {
-                            controller.setAudioSource(preset.audioSource)
-                        }
+
+                        MonitorActions.applyTarget(
+                            controller = controller,
+                            currentStatus = currentStatus,
+                            targetLayout = preset.layout,
+                            targetPaneSources = preset.paneSources,
+                            targetAudioSource = preset.audioSource
+                        )
+
                         status = controller.getStatus()
                         if (currentStatus != null && ConfigManager.config.enableSafetyCountdown) {
                             pendingChange = PendingChange(currentStatus, 10)
@@ -162,26 +145,18 @@ fun main() = application {
                                 if (change != null) {
                                     scope.launch {
                                         val currentStatus = status
-                                        val targetLayout = change.previousStatus.layout
-                                        val needsLayoutRevert = targetLayout != null && targetLayout != currentStatus?.layout
-                                        
+
                                         pendingChange = null
                                         status = null
-                                        if (needsLayoutRevert) {
-                                            controller.setLayout(targetLayout!!)
-                                            delay(4000)
-                                        }
-                                        change.previousStatus.paneSources.forEach { (channel, source) ->
-                                            if (currentStatus?.paneSources?.get(channel) != source) {
-                                                if (targetLayout == Layout.OFF && channel == PaneChannel.PANE_1) {
-                                                    controller.setMainSource(source)
-                                                } else {
-                                                    controller.setSource(channel, source)
-                                                }
-                                                delay(4000)
-                                            }
-                                        }
-                                        
+
+                                        MonitorActions.applyTarget(
+                                            controller = controller,
+                                            currentStatus = currentStatus,
+                                            targetLayout = change.previousStatus.layout,
+                                            targetPaneSources = change.previousStatus.paneSources,
+                                            targetAudioSource = change.previousStatus.audioSource
+                                        )
+
                                         status = controller.getStatus()
                                     }
                                 }

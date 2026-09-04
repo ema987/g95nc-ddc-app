@@ -201,23 +201,13 @@ fun Dashboard(
                         }
                         Button(onClick = {
                             onExecuteAction(safeMode) { currentStatus ->
-                                if (currentStatus?.layout != preset.layout) {
-                                    controller.setLayout(preset.layout)
-                                    kotlinx.coroutines.delay(4000)
-                                }
-                                preset.paneSources.forEach { (channel, source) ->
-                                    if (currentStatus?.paneSources?.get(channel) != source) {
-                                        if (preset.layout == Layout.OFF && channel == PaneChannel.PANE_1) {
-                                            controller.setMainSource(source)
-                                        } else {
-                                            controller.setSource(channel, source)
-                                        }
-                                        kotlinx.coroutines.delay(4000)
-                                    }
-                                }
-                                if (preset.audioSource != null && status?.audioSource != preset.audioSource) {
-                                    controller.setAudioSource(preset.audioSource)
-                                }
+                                MonitorActions.applyTarget(
+                                    controller = controller,
+                                    currentStatus = currentStatus,
+                                    targetLayout = preset.layout,
+                                    targetPaneSources = preset.paneSources,
+                                    targetAudioSource = preset.audioSource
+                                )
                             }
                         }) {
                             Text("Apply")

@@ -1,16 +1,9 @@
 package com.g95nc.controller
 
-import androidx.compose.desktop.ui.tooling.preview.Preview
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.*
 import kotlinx.coroutines.launch
@@ -137,7 +130,7 @@ fun main() = application {
             title = "G95NC Controller",
             state = rememberWindowState(width = 600.dp, height = 700.dp)
         ) {
-            MaterialTheme(colors = darkColors()) {
+            AppTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     if (!isToolAvailable) {
                         OnboardingWizard(
@@ -221,7 +214,7 @@ fun main() = application {
             title = "Settings & Tools",
             state = rememberWindowState(width = 500.dp, height = 400.dp)
         ) {
-            MaterialTheme(colors = darkColors()) {
+            AppTheme {
                 SettingsModal(
                     config = config,
                     onSave = { newConfig ->

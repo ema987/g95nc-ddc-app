@@ -1,7 +1,5 @@
 package com.g95nc.controller
 
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.darkColors
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onFirst
@@ -23,7 +21,7 @@ class SettingsModalUiTest {
     fun testSaveConfiguration_passesEditedPathAndToggledCheckbox() {
         var saved: AppConfig? = null
         composeRule.setContent {
-            MaterialTheme(colors = darkColors()) {
+            AppTheme {
                 SettingsModal(
                     config = AppConfig(ddcutilPath = "ddcutil", betterdisplaycliPath = "betterdisplaycli", enableSafetyCountdown = true),
                     onSave = { saved = it }

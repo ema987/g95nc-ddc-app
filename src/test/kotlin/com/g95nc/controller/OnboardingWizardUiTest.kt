@@ -1,7 +1,5 @@
 package com.g95nc.controller
 
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.darkColors
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -19,7 +17,7 @@ class OnboardingWizardUiTest {
         var checkedAgain = false
         var settingsOpened = false
         composeRule.setContent {
-            MaterialTheme(colors = darkColors()) {
+            AppTheme {
                 OnboardingWizard(onOpenSettings = { settingsOpened = true }, onCheckAgain = { checkedAgain = true })
             }
         }

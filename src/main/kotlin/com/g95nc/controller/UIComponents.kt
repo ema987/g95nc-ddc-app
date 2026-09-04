@@ -1,9 +1,8 @@
 package com.g95nc.controller
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -11,12 +10,11 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -45,19 +43,19 @@ fun Dashboard(
     // can drift from what's actually persisted (and what the Settings modal shows).
     val safeMode = config.enableSafetyCountdown
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Dashboard", style = MaterialTheme.typography.h5)
+            Text("G95NC", style = MaterialTheme.typography.titleLarge)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(
                     checked = safeMode,
                     onCheckedChange = { onConfigChange(config.copy(enableSafetyCountdown = it)) }
                 )
-                Text("Safe Mode", style = MaterialTheme.typography.caption)
+                Text("Safe Mode", style = MaterialTheme.typography.labelMedium)
                 Spacer(modifier = Modifier.width(8.dp))
                 IconButton(onClick = onRefresh, enabled = !isBusy) {
                     Icon(Icons.Default.Refresh, contentDescription = "Refresh")
@@ -69,17 +67,16 @@ fun Dashboard(
         }
 
         if (isBusy) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
         } else {
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(12.dp))
         }
 
-        Divider(modifier = Modifier.padding(vertical = 16.dp))
-        
         if (pendingChange != null) {
-            Card(
-                backgroundColor = MaterialTheme.colors.primaryVariant,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+            Surface(
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
             ) {
                 Row(
                     modifier = Modifier.padding(16.dp).fillMaxWidth(),
@@ -88,34 +85,28 @@ fun Dashboard(
                 ) {
                     Text(
                         text = "Keep these display settings?\nReverting in ${pendingChange.countdown}s...",
-                        color = Color.White
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     Row {
-                        OutlinedButton(
-                            onClick = onRevertChange,
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
-                        ) {
+                        OutlinedButton(onClick = onRevertChange) {
                             Text("Revert")
                         }
                         Spacer(modifier = Modifier.width(8.dp))
-                        Button(
-                            onClick = onConfirmChange,
-                            colors = ButtonDefaults.buttonColors(backgroundColor = Color.White, contentColor = Color.Black)
-                        ) {
+                        Button(onClick = onConfirmChange) {
                             Text("Confirm")
                         }
                     }
                 }
             }
         }
-        
+
         if (status == null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     if (recoveryExhausted) {
                         Text(
                             "Couldn't reach the monitor after several attempts.",
-                            color = MaterialTheme.colors.error
+                            color = MaterialTheme.colorScheme.error
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Button(onClick = onRefresh) {
@@ -131,49 +122,65 @@ fun Dashboard(
             return
         }
 
-        // Current Layout
-        Text("Current Layout: ${status.layout?.description ?: "Unknown (0x${status.layoutStatusRaw.toString(16)})"}")
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        // Controls
-        Text("Change Layout:", fontWeight = FontWeight.Bold)
+        // The picture of how the screen is currently split - the anchor of the dashboard, read
+        // before any of the text controls below it.
+        LayoutDiagram(
+            layout = status.layout,
+            paneSources = status.paneSources,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            status.layout?.description ?: "Unknown (0x${status.layoutStatusRaw.toString(16)})",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("Change layout", style = MaterialTheme.typography.labelLarge)
+        Spacer(modifier = Modifier.height(4.dp))
         var expandedLayout by remember { mutableStateOf(false) }
         Box {
             OutlinedButton(onClick = { expandedLayout = true }, enabled = !isBusy) {
+                LayoutGlyph(status.layout ?: Layout.OFF)
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(status.layout?.description ?: "Select Layout")
             }
             DropdownMenu(expanded = expandedLayout, onDismissRequest = { expandedLayout = false }) {
                 Layout.entries.forEach { layout ->
-                    DropdownMenuItem(onClick = {
-                        expandedLayout = false
-                        onExecuteAction(safeMode) { _ ->
-                            controller.setLayout(layout)
+                    DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                LayoutGlyph(layout)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(layout.description)
+                            }
+                        },
+                        onClick = {
+                            expandedLayout = false
+                            onExecuteAction(safeMode) { _ ->
+                                controller.setLayout(layout)
+                            }
                         }
-                    }) {
-                        Text(layout.description)
-                    }
+                    )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-        Text("Source Routing:", fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("Source routing", style = MaterialTheme.typography.labelLarge)
+        Spacer(modifier = Modifier.height(4.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            val is3Way = status.layout?.name?.startsWith("PBP_3") == true
-            val is2WayOrPip = status.layout?.name?.startsWith("PBP_2") == true || status.layout == Layout.PIP
-
-            PaneSourceSelector(if (is3Way || is2WayOrPip) "Left" else "Main", PaneChannel.PANE_1, controller, status, isBusy) { action -> onExecuteAction(safeMode, action) }
-
-            if (is3Way) {
-                PaneSourceSelector("Middle", PaneChannel.PANE_2, controller, status, isBusy) { action -> onExecuteAction(safeMode, action) }
-                PaneSourceSelector("Right", PaneChannel.PANE_3, controller, status, isBusy) { action -> onExecuteAction(safeMode, action) }
-            } else if (is2WayOrPip) {
-                PaneSourceSelector("Right/Sub", PaneChannel.PANE_2, controller, status, isBusy) { action -> onExecuteAction(safeMode, action) }
+            val slots = paneSlotsFor(status.layout)
+            slots.forEach { (channel, label) ->
+                PaneSourceSelector(label, channel, controller, status, isBusy) { action -> onExecuteAction(safeMode, action) }
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
-        Divider()
+        Spacer(modifier = Modifier.height(28.dp))
+        HorizontalDivider()
         Spacer(modifier = Modifier.height(16.dp))
 
         // Presets
@@ -182,7 +189,7 @@ fun Dashboard(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Presets", style = MaterialTheme.typography.h6)
+            Text("Presets", style = MaterialTheme.typography.titleMedium)
             Button(onClick = { isSavingPreset = true }, enabled = !isBusy) {
                 Text("Save Current as Preset")
             }
@@ -216,12 +223,12 @@ fun Dashboard(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-        LazyColumn(modifier = Modifier.fillMaxWidth()) {
-            items(config.presets, key = { it.id }) { preset ->
-                Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), elevation = 4.dp) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Column(modifier = Modifier.fillMaxWidth()) {
+            config.presets.forEach { preset ->
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
                     Row(
-                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -245,9 +252,12 @@ fun Dashboard(
                             }
                         } else {
                             Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                                Text(preset.name, fontWeight = FontWeight.Bold)
-                                Text(preset.layout.description, style = MaterialTheme.typography.caption)
-                                Text(formatPresetSources(preset), style = MaterialTheme.typography.caption)
+                                Text(preset.name, style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    preset.layout.description,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                             IconButton(
                                 onClick = {
@@ -282,7 +292,16 @@ fun Dashboard(
                             }
                         }
                     }
+                    if (renamingPresetId != preset.id) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            paneSlotsFor(preset.layout).forEach { (channel, label) ->
+                                SourceChip(label, preset.paneSources[channel])
+                            }
+                        }
+                    }
                 }
+                HorizontalDivider()
             }
         }
     }
@@ -301,25 +320,40 @@ fun PaneSourceSelector(
     val currentSource = status.paneSources[channel]
 
     Column {
-        Text(label, style = MaterialTheme.typography.caption)
+        Text(label, style = MaterialTheme.typography.labelSmall)
         Box {
-            OutlinedButton(onClick = { expanded = true }, enabled = !isBusy) {
+            OutlinedButton(
+                onClick = { expanded = true },
+                enabled = !isBusy,
+                modifier = Modifier.testTag("sourceSelector_${channel.name}")
+            ) {
+                currentSource?.let {
+                    Icon(sourceIcon(it), contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
                 Text(currentSource?.description ?: "Select Source")
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 SourceCode.entries.filter { it != currentSource }.forEach { src ->
-                    DropdownMenuItem(onClick = {
-                        expanded = false
-                        onExecuteAction { _ ->
-                            if (status.layout == Layout.OFF) {
-                                controller.setMainSource(src)
-                            } else {
-                                controller.setSource(channel, src)
+                    DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(sourceIcon(src), contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(src.description)
+                            }
+                        },
+                        onClick = {
+                            expanded = false
+                            onExecuteAction { _ ->
+                                if (status.layout == Layout.OFF) {
+                                    controller.setMainSource(src)
+                                } else {
+                                    controller.setSource(channel, src)
+                                }
                             }
                         }
-                    }) {
-                        Text(src.description)
-                    }
+                    )
                 }
             }
         }
@@ -334,9 +368,9 @@ fun OnboardingWizard(onOpenSettings: () -> Unit, onCheckAgain: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         val os = System.getProperty("os.name").lowercase()
-        Text("Required Tools Not Found", style = MaterialTheme.typography.h5, color = MaterialTheme.colors.error)
+        Text("Required Tools Not Found", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.error)
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         if (os.contains("mac")) {
             Text("This app requires 'betterdisplaycli' on macOS.")
             Text("You can install it via Homebrew: 'brew install betterdisplaycli' or configure its path if already installed.")
@@ -346,7 +380,7 @@ fun OnboardingWizard(onOpenSettings: () -> Unit, onCheckAgain: () -> Unit) {
         } else if (os.contains("win")) {
             Text("Windows native tools failed to load.")
         }
-        
+
         Spacer(modifier = Modifier.height(24.dp))
         Row {
             OutlinedButton(onClick = onCheckAgain) {
@@ -367,9 +401,9 @@ fun SettingsModal(config: AppConfig, onSave: (AppConfig) -> Unit) {
     var enableCountdown by remember { mutableStateOf(config.enableSafetyCountdown) }
 
     Column(modifier = Modifier.padding(24.dp).fillMaxSize()) {
-        Text("Settings", style = MaterialTheme.typography.h5)
+        Text("Settings", style = MaterialTheme.typography.titleLarge)
         Spacer(modifier = Modifier.height(24.dp))
-        
+
         OutlinedTextField(
             value = ddcPath,
             onValueChange = { ddcPath = it },
@@ -385,7 +419,7 @@ fun SettingsModal(config: AppConfig, onSave: (AppConfig) -> Unit) {
             modifier = Modifier.fillMaxWidth().testTag("betterdisplaycliPathField")
         )
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(
                 checked = enableCountdown,
@@ -394,9 +428,9 @@ fun SettingsModal(config: AppConfig, onSave: (AppConfig) -> Unit) {
             Spacer(modifier = Modifier.width(8.dp))
             Text("Enable Safety Countdown (auto-revert changes)")
         }
-        
+
         Spacer(modifier = Modifier.weight(1f))
-        
+
         Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
             Button(onClick = {
                 onSave(config.copy(

@@ -1,7 +1,5 @@
 package com.g95nc.controller
 
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.darkColors
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -12,6 +10,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import org.junit.Rule
@@ -49,7 +48,7 @@ class DashboardUiTest {
         onConfirmChange: () -> Unit = {}
     ) {
         composeRule.setContent {
-            MaterialTheme(colors = darkColors()) {
+            AppTheme {
                 Dashboard(
                     status = status,
                     controller = controller,
@@ -92,7 +91,7 @@ class DashboardUiTest {
         setDashboard(isBusy = true, config = AppConfig(presets = listOf(preset)))
 
         composeRule.onNodeWithContentDescription("Refresh").assertIsNotEnabled()
-        composeRule.onNodeWithText("HDMI 1").assertIsNotEnabled() // main-source select button
+        composeRule.onNodeWithTag("sourceSelector_PANE_1").assertIsNotEnabled()
         composeRule.onNodeWithText("Save Current as Preset").assertIsNotEnabled()
         composeRule.onNodeWithText("Apply").assertIsNotEnabled()
         composeRule.onNodeWithContentDescription("Delete preset").assertIsNotEnabled()
@@ -103,7 +102,7 @@ class DashboardUiTest {
         setDashboard(isBusy = false)
 
         composeRule.onNodeWithContentDescription("Refresh").assertIsEnabled()
-        composeRule.onNodeWithText("HDMI 1").assertIsEnabled()
+        composeRule.onNodeWithTag("sourceSelector_PANE_1").assertIsEnabled()
         composeRule.onNodeWithText("Save Current as Preset").assertIsEnabled()
     }
 
@@ -128,9 +127,10 @@ class DashboardUiTest {
         )
         setDashboard(config = AppConfig(presets = listOf(preset)))
 
-        composeRule.onNodeWithText("Streaming").assertIsDisplayed()
-        composeRule.onNodeWithText(Layout.PBP_2_50_50.description).assertIsDisplayed()
-        composeRule.onNodeWithText(formatPresetSources(preset)).assertIsDisplayed()
+        composeRule.onNodeWithText("Streaming").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(Layout.PBP_2_50_50.description).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Left: HDMI 1").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Right/Sub: DisplayPort").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -139,7 +139,7 @@ class DashboardUiTest {
         var reported: AppConfig? = null
         setDashboard(config = AppConfig(presets = listOf(preset)), onConfigChange = { reported = it })
 
-        composeRule.onNodeWithContentDescription("Delete preset").performClick()
+        composeRule.onNodeWithContentDescription("Delete preset").performScrollTo().performClick()
 
         assertEquals(emptyList(), reported?.presets)
     }
@@ -150,10 +150,10 @@ class DashboardUiTest {
         var reported: AppConfig? = null
         setDashboard(config = AppConfig(presets = listOf(preset)), onConfigChange = { reported = it })
 
-        composeRule.onNodeWithContentDescription("Rename preset").performClick()
-        composeRule.onNodeWithTag("renamePresetField").performTextClearance()
+        composeRule.onNodeWithContentDescription("Rename preset").performScrollTo().performClick()
+        composeRule.onNodeWithTag("renamePresetField").performScrollTo().performTextClearance()
         composeRule.onNodeWithTag("renamePresetField").performTextInput("New Name")
-        composeRule.onNodeWithContentDescription("Confirm rename").performClick()
+        composeRule.onNodeWithContentDescription("Confirm rename").performScrollTo().performClick()
 
         assertEquals("New Name", reported?.presets?.single()?.name)
     }
@@ -164,13 +164,13 @@ class DashboardUiTest {
         var reported: AppConfig? = null
         setDashboard(config = AppConfig(presets = listOf(preset)), onConfigChange = { reported = it })
 
-        composeRule.onNodeWithContentDescription("Rename preset").performClick()
-        composeRule.onNodeWithTag("renamePresetField").performTextClearance()
+        composeRule.onNodeWithContentDescription("Rename preset").performScrollTo().performClick()
+        composeRule.onNodeWithTag("renamePresetField").performScrollTo().performTextClearance()
         composeRule.onNodeWithTag("renamePresetField").performTextInput("Should Not Save")
-        composeRule.onNodeWithContentDescription("Cancel rename").performClick()
+        composeRule.onNodeWithContentDescription("Cancel rename").performScrollTo().performClick()
 
         assertNull(reported)
-        composeRule.onNodeWithText("Old Name").assertIsDisplayed()
+        composeRule.onNodeWithText("Old Name").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -182,7 +182,7 @@ class DashboardUiTest {
             onExecuteAction = { safeMode, _ -> receivedSafeMode = safeMode }
         )
 
-        composeRule.onNodeWithText("Apply").performClick()
+        composeRule.onNodeWithText("Apply").performScrollTo().performClick()
 
         assertEquals(true, receivedSafeMode)
     }
@@ -196,9 +196,9 @@ class DashboardUiTest {
             onConfigChange = { reported = it }
         )
 
-        composeRule.onNodeWithText("Save Current as Preset").performClick()
-        composeRule.onNodeWithTag("newPresetNameField").performTextInput("My Preset")
-        composeRule.onNodeWithText("Save").performClick()
+        composeRule.onNodeWithText("Save Current as Preset").performScrollTo().performClick()
+        composeRule.onNodeWithTag("newPresetNameField").performScrollTo().performTextInput("My Preset")
+        composeRule.onNodeWithText("Save").performScrollTo().performClick()
 
         val saved = reported?.presets?.singleOrNull()
         assertEquals("My Preset", saved?.name)

@@ -84,17 +84,19 @@ fun List<Preset>.withoutPreset(id: String): List<Preset> = filterNot { it.id == 
 fun List<Preset>.renamed(id: String, newName: String): List<Preset> =
     map { if (it.id == id) it.copy(name = newName) else it }
 
+/** Which pane channels a layout uses, and what to call each one - the single source of truth for
+ * pane labeling, shared by the source-routing controls, the layout diagram, and preset display. */
+fun paneSlotsFor(layout: Layout?): List<Pair<PaneChannel, String>> = when {
+    layout == null -> listOf(PaneChannel.PANE_1 to "Main")
+    layout.name.startsWith("PBP_3") ->
+        listOf(PaneChannel.PANE_1 to "Left", PaneChannel.PANE_2 to "Middle", PaneChannel.PANE_3 to "Right")
+    layout.name.startsWith("PBP_2") || layout == Layout.PIP ->
+        listOf(PaneChannel.PANE_1 to "Left", PaneChannel.PANE_2 to "Right/Sub")
+    else -> listOf(PaneChannel.PANE_1 to "Main")
+}
+
 /** Human-readable per-pane routing for a preset, e.g. "Left: HDMI 1  ·  Right/Sub: DisplayPort". */
-fun formatPresetSources(preset: Preset): String {
-    val layout = preset.layout
-    val slots = when {
-        layout.name.startsWith("PBP_3") ->
-            listOf(PaneChannel.PANE_1 to "Left", PaneChannel.PANE_2 to "Middle", PaneChannel.PANE_3 to "Right")
-        layout.name.startsWith("PBP_2") || layout == Layout.PIP ->
-            listOf(PaneChannel.PANE_1 to "Left", PaneChannel.PANE_2 to "Right/Sub")
-        else -> listOf(PaneChannel.PANE_1 to "Main")
-    }
-    return slots.joinToString("  ·  ") { (channel, label) ->
+fun formatPresetSources(preset: Preset): String =
+    paneSlotsFor(preset.layout).joinToString("  ·  ") { (channel, label) ->
         "$label: ${preset.paneSources[channel]?.description ?: "—"}"
     }
-}

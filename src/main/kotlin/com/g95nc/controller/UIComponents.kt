@@ -39,6 +39,7 @@ fun Dashboard(
     var newPresetName by remember { mutableStateOf("") }
     var renamingPresetId by remember { mutableStateOf<String?>(null) }
     var renamePresetText by remember { mutableStateOf("") }
+    var presetPendingDelete by remember { mutableStateOf<Preset?>(null) }
     // Single source of truth is the config passed in from above - no separate local copy that
     // can drift from what's actually persisted (and what the Settings modal shows).
     val safeMode = config.enableSafetyCountdown
@@ -224,6 +225,13 @@ fun Dashboard(
         }
 
         Spacer(modifier = Modifier.height(8.dp))
+        if (config.presets.isEmpty()) {
+            Text(
+                "No presets yet - save your current layout above to create one.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
         Column(modifier = Modifier.fillMaxWidth()) {
             config.presets.forEach { preset ->
                 Column(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
@@ -269,7 +277,7 @@ fun Dashboard(
                                 Icon(Icons.Default.Edit, contentDescription = "Rename preset")
                             }
                             IconButton(
-                                onClick = { onConfigChange(config.copy(presets = config.presets.withoutPreset(preset.id))) },
+                                onClick = { presetPendingDelete = preset },
                                 enabled = !isBusy
                             ) {
                                 Icon(Icons.Default.Delete, contentDescription = "Delete preset")
@@ -304,6 +312,27 @@ fun Dashboard(
                 HorizontalDivider()
             }
         }
+    }
+
+    presetPendingDelete?.let { preset ->
+        AlertDialog(
+            onDismissRequest = { presetPendingDelete = null },
+            title = { Text("Delete preset?") },
+            text = { Text("\"${preset.name}\" will be removed. This can't be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onConfigChange(config.copy(presets = config.presets.withoutPreset(preset.id)))
+                    presetPendingDelete = null
+                }) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { presetPendingDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

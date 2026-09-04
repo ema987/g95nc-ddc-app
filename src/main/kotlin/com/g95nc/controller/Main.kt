@@ -128,7 +128,7 @@ fun main() = application {
         Window(
             onCloseRequest = { isDashboardOpen = false },
             title = "G95NC Controller",
-            state = rememberWindowState(width = 600.dp, height = 700.dp)
+            state = rememberWindowState(width = 680.dp, height = 920.dp)
         ) {
             AppTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {

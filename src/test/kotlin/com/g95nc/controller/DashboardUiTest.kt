@@ -1,10 +1,12 @@
 package com.g95nc.controller
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -118,6 +120,14 @@ class DashboardUiTest {
     }
 
     @Test
+    fun testNoPresets_showsEmptyStateInsteadOfBlankSpace() {
+        setDashboard(config = AppConfig(presets = emptyList()))
+
+        composeRule.onNodeWithText("No presets yet - save your current layout above to create one.")
+            .performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
     fun testPresetList_showsNameLayoutAndPerPaneSources() {
         val preset = Preset(
             id = "p1",
@@ -131,17 +141,37 @@ class DashboardUiTest {
         composeRule.onNodeWithText(Layout.PBP_2_50_50.description).performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("Left: HDMI 1").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("Right/Sub: DisplayPort").performScrollTo().assertIsDisplayed()
+        composeRule.onAllNodesWithText("No presets yet - save your current layout above to create one.").assertCountEquals(0)
     }
 
     @Test
-    fun testPresetDelete_reportsConfigWithThatPresetRemoved() {
+    fun testPresetDelete_showsConfirmationBeforeReportingConfigWithoutThatPreset() {
         val preset = Preset(id = "p1", name = "ToDelete", layout = Layout.OFF, paneSources = emptyMap())
         var reported: AppConfig? = null
         setDashboard(config = AppConfig(presets = listOf(preset)), onConfigChange = { reported = it })
 
         composeRule.onNodeWithContentDescription("Delete preset").performScrollTo().performClick()
 
+        // Clicking the icon must not delete anything yet - only confirming the dialog does.
+        composeRule.onNodeWithText("Delete preset?").assertIsDisplayed()
+        assertNull(reported)
+
+        composeRule.onNodeWithText("Delete").performClick()
+
         assertEquals(emptyList(), reported?.presets)
+    }
+
+    @Test
+    fun testPresetDelete_cancelLeavesThePresetInPlace() {
+        val preset = Preset(id = "p1", name = "KeepMe", layout = Layout.OFF, paneSources = emptyMap())
+        var reported: AppConfig? = null
+        setDashboard(config = AppConfig(presets = listOf(preset)), onConfigChange = { reported = it })
+
+        composeRule.onNodeWithContentDescription("Delete preset").performScrollTo().performClick()
+        composeRule.onNodeWithText("Cancel").performClick()
+
+        assertNull(reported)
+        composeRule.onNodeWithText("KeepMe").performScrollTo().assertIsDisplayed()
     }
 
     @Test

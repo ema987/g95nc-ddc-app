@@ -1,0 +1,163 @@
+package com.g95nc.controller
+
+import kotlinx.coroutines.test.runTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+
+class DdcStatusReaderTest {
+
+    private val fastConfig = DdcStatusReader.PollingConfig(maxAttempts = 10, pollDelayMs = 10, zeroConfirmations = 2)
+
+    @Test
+    fun testSingleSourceMode_resolvesOnceZeroIsConfirmedTwice() = runTest {
+        var e2Calls = 0
+        val status = DdcStatusReader.readStatus(fastConfig) { vcp ->
+            when (vcp) {
+                "E2" -> { e2Calls++; 0 }
+                "60" -> 0x11 // HDMI1
+                "E8" -> 0x01
+                else -> null
+            }
+        }
+
+        assertEquals(2, e2Calls, "should wait for zeroConfirmations before trusting Single Source mode")
+        assertEquals(Layout.OFF, status?.layout)
+        assertEquals(SourceCode.HDMI1, status?.paneSources?.get(PaneChannel.PANE_1))
+        assertEquals(0x11, status?.mainInputSource)
+        assertEquals(0x01, status?.audioSource)
+    }
+
+    @Test
+    fun testSingleSourceMode_transientZeroDoesNotResetOnNonZeroBusyValue() = runTest {
+        // First read is a genuine transient busy 0, second read is 0x3900 (also "off"), which
+        // must still count towards confirming Single Source rather than being treated as new info.
+        var attempt = 0
+        val status = DdcStatusReader.readStatus(fastConfig) { vcp ->
+            when (vcp) {
+                "E2" -> { attempt++; if (attempt == 1) 0 else 0x3900 }
+                "60" -> 0x0F // DP
+                "E8" -> 0
+                else -> null
+            }
+        }
+
+        assertEquals(Layout.OFF, status?.layout)
+        assertEquals(SourceCode.DP, status?.paneSources?.get(PaneChannel.PANE_1))
+    }
+
+    @Test
+    fun testPbp2Way_decodesLeftAndRightPanes() = runTest {
+        val status = DdcStatusReader.readStatus(fastConfig) { vcp ->
+            when (vcp) {
+                "E2" -> 0x3901
+                "E3" -> 0x0001 // left=HDMI1(0x00), right=HDMI2(0x01)
+                "E8" -> 0x02
+                else -> null
+            }
+        }
+
+        assertEquals(Layout.PBP_2_50_50, status?.layout)
+        assertEquals(SourceCode.HDMI1, status?.paneSources?.get(PaneChannel.PANE_1))
+        assertEquals(SourceCode.HDMI2, status?.paneSources?.get(PaneChannel.PANE_2))
+        assertEquals(0, status?.mainInputSource, "mainInputSource is not meaningful in PBP mode")
+    }
+
+    @Test
+    fun testPbp3Way_mapsRawE2CodesToLayout() = runTest {
+        val statusLeft = DdcStatusReader.readStatus(fastConfig) { vcp ->
+            when (vcp) {
+                "E2" -> 0x3909
+                "E3" -> 0x0002 // left=HDMI1, right=HDMI3
+                "E8" -> 0
+                else -> null
+            }
+        }
+        assertEquals(Layout.PBP_3_50_25_25, statusLeft?.layout)
+
+        val statusMiddle = DdcStatusReader.readStatus(fastConfig) { vcp ->
+            when (vcp) {
+                "E2" -> 0x390b
+                "E3" -> 0x0010 // left=HDMI1, right=DP
+                "E8" -> 0
+                else -> null
+            }
+        }
+        assertEquals(Layout.PBP_3_25_50_25, statusMiddle?.layout)
+
+        val statusPip = DdcStatusReader.readStatus(fastConfig) { vcp ->
+            when (vcp) {
+                "E2" -> 0x390f
+                "E3" -> 0x0100 // left=HDMI2, right=HDMI1
+                "E8" -> 0
+                else -> null
+            }
+        }
+        assertEquals(Layout.PIP, statusPip?.layout)
+    }
+
+    @Test
+    fun testGarbageE3_retriesUntilPaneCodesAreValid() = runTest {
+        var e3Calls = 0
+        val status = DdcStatusReader.readStatus(fastConfig) { vcp ->
+            when (vcp) {
+                "E2" -> 0x3901
+                "E3" -> {
+                    e3Calls++
+                    if (e3Calls == 1) 0x3901 // garbage echo of E2, not a valid pane pair
+                    else 0x0001
+                }
+                "E8" -> 0
+                else -> null
+            }
+        }
+
+        assertEquals(2, e3Calls)
+        assertEquals(Layout.PBP_2_50_50, status?.layout)
+    }
+
+    @Test
+    fun testGarbageE2_retriesUntilRecognized() = runTest {
+        // attempt 1: unrecognized garbage, attempt 2 & 3: two confirmations of Single Source mode.
+        val e2Sequence = listOf(0x1234, 0, 0x3900)
+        var e2Calls = 0
+        val status = DdcStatusReader.readStatus(fastConfig) { vcp ->
+            when (vcp) {
+                "E2" -> e2Sequence[e2Calls++]
+                "60" -> 0x12 // HDMI2
+                "E8" -> 0
+                else -> null
+            }
+        }
+
+        assertEquals(3, e2Calls)
+        assertEquals(Layout.OFF, status?.layout)
+        assertEquals(SourceCode.HDMI2, status?.paneSources?.get(PaneChannel.PANE_1))
+    }
+
+    @Test
+    fun testNullE2_givesUpAfterMaxAttempts() = runTest {
+        var calls = 0
+        val status = DdcStatusReader.readStatus(fastConfig) { vcp ->
+            if (vcp == "E2") { calls++; null } else null
+        }
+
+        assertNull(status)
+        assertEquals(fastConfig.maxAttempts, calls)
+    }
+
+    @Test
+    fun testUnknownSourceCodeInSinglePane_yieldsEmptyPaneMap() = runTest {
+        val status = DdcStatusReader.readStatus(fastConfig) { vcp ->
+            when (vcp) {
+                "E2" -> 0x3900
+                "60" -> 0x99 // not a known SourceCode
+                "E8" -> 0
+                else -> null
+            }
+        }
+
+        assertEquals(Layout.OFF, status?.layout)
+        assertEquals(emptyMap(), status?.paneSources)
+    }
+}

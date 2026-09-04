@@ -6,7 +6,7 @@ import kotlin.test.assertEquals
 class BetterDisplayCliParserTest {
 
     @Test
-    fun testParseIdentifiersOutput_valid() {
+    fun testParseAllIdentifiersOutput_returnsEveryG95NCTagInOrder() {
         val jsonOutput = """
             {
               "UUID" : "63F2A128-0F49-495C-8A4E-AD03A17EAE76",
@@ -18,22 +18,38 @@ class BetterDisplayCliParserTest {
               "tagID" : "7"
             }
         """.trimIndent()
-        
-        val tag = BetterDisplayCliController.parseIdentifiersOutput(jsonOutput)
-        assertEquals("6", tag)
+
+        val tags = BetterDisplayCliController.parseAllIdentifiersOutput(jsonOutput)
+        assertEquals(listOf("6", "7"), tags)
     }
 
     @Test
-    fun testParseIdentifiersOutput_invalid() {
+    fun testParseAllIdentifiersOutput_excludesNonMatchingMonitors() {
+        val jsonOutput = """
+            {
+              "name" : "Some Other Monitor",
+              "tagID" : "1"
+            },{
+              "name" : "Odyssey G95NC",
+              "tagID" : "6"
+            }
+        """.trimIndent()
+
+        val tags = BetterDisplayCliController.parseAllIdentifiersOutput(jsonOutput)
+        assertEquals(listOf("6"), tags)
+    }
+
+    @Test
+    fun testParseAllIdentifiersOutput_emptyWhenNoneMatch() {
         val jsonOutput = """
             {
               "name" : "Some Other Monitor",
               "tagID" : "1"
             }
         """.trimIndent()
-        
-        val tag = BetterDisplayCliController.parseIdentifiersOutput(jsonOutput)
-        assertEquals(null, tag)
+
+        val tags = BetterDisplayCliController.parseAllIdentifiersOutput(jsonOutput)
+        assertEquals(emptyList(), tags)
     }
 
     @Test

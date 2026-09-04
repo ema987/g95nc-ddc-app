@@ -44,7 +44,7 @@ fun Dashboard(
     // can drift from what's actually persisted (and what the Settings modal shows).
     val safeMode = config.enableSafetyCountdown
 
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
+    Column(modifier = Modifier.fillMaxSize().padding(20.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -101,8 +101,11 @@ fun Dashboard(
             }
         }
 
+        // status == null gets a fixed-height centered box (not scrollable content) so the loading/
+        // give-up message actually centers in the window instead of wrapping to the top of an
+        // unbounded-height scrollable area.
         if (status == null) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     if (recoveryExhausted) {
                         Text(
@@ -120,196 +123,197 @@ fun Dashboard(
                     }
                 }
             }
-            return
-        }
+        } else {
+            Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                Spacer(modifier = Modifier.height(20.dp))
 
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // The picture of how the screen is currently split - the anchor of the dashboard, read
-        // before any of the text controls below it.
-        LayoutDiagram(
-            layout = status.layout,
-            paneSources = status.paneSources,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            status.layout?.description ?: "Unknown (0x${status.layoutStatusRaw.toString(16)})",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-        Text("Change layout", style = MaterialTheme.typography.labelLarge)
-        Spacer(modifier = Modifier.height(4.dp))
-        var expandedLayout by remember { mutableStateOf(false) }
-        Box {
-            OutlinedButton(onClick = { expandedLayout = true }, enabled = !isBusy) {
-                LayoutGlyph(status.layout ?: Layout.OFF)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(status.layout?.description ?: "Select Layout")
-            }
-            DropdownMenu(expanded = expandedLayout, onDismissRequest = { expandedLayout = false }) {
-                Layout.entries.forEach { layout ->
-                    DropdownMenuItem(
-                        text = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                LayoutGlyph(layout)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(layout.description)
-                            }
-                        },
-                        onClick = {
-                            expandedLayout = false
-                            onExecuteAction(safeMode) { _ ->
-                                controller.setLayout(layout)
-                            }
-                        }
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-        Text("Source routing", style = MaterialTheme.typography.labelLarge)
-        Spacer(modifier = Modifier.height(4.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            val slots = paneSlotsFor(status.layout)
-            slots.forEach { (channel, label) ->
-                PaneSourceSelector(label, channel, controller, status, isBusy) { action -> onExecuteAction(safeMode, action) }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(28.dp))
-        HorizontalDivider()
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Presets
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Presets", style = MaterialTheme.typography.titleMedium)
-            Button(onClick = { isSavingPreset = true }, enabled = !isBusy) {
-                Text("Save Current as Preset")
-            }
-        }
-
-        if (isSavingPreset) {
-            Row(modifier = Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = newPresetName,
-                    onValueChange = { newPresetName = it },
-                    label = { Text("Preset Name") },
-                    modifier = Modifier.weight(1f).testTag("newPresetNameField")
+                // The picture of how the screen is currently split - the anchor of the dashboard,
+                // read before any of the text controls below it.
+                LayoutDiagram(
+                    layout = status.layout,
+                    paneSources = status.paneSources,
+                    modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                Button(onClick = {
-                    if (newPresetName.isNotBlank() && status.layout != null) {
-                        val newPreset = Preset(
-                            id = UUID.randomUUID().toString(),
-                            name = newPresetName,
-                            layout = status.layout,
-                            paneSources = status.paneSources, // Needs accurate pane sources
-                            audioSource = status.audioSource
-                        )
-                        onConfigChange(config.copy(presets = config.presets + newPreset))
-                    }
-                    isSavingPreset = false
-                    newPresetName = ""
-                }) {
-                    Text("Save")
-                }
-            }
-        }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    status.layout?.description ?: "Unknown (0x${status.layoutStatusRaw.toString(16)})",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
-        Spacer(modifier = Modifier.height(8.dp))
-        if (config.presets.isEmpty()) {
-            Text(
-                "No presets yet - save your current layout above to create one.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        Column(modifier = Modifier.fillMaxWidth()) {
-            config.presets.forEach { preset ->
-                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (renamingPresetId == preset.id) {
-                            OutlinedTextField(
-                                value = renamePresetText,
-                                onValueChange = { renamePresetText = it },
-                                modifier = Modifier.weight(1f).padding(end = 8.dp).testTag("renamePresetField"),
-                                singleLine = true
-                            )
-                            IconButton(onClick = {
-                                if (renamePresetText.isNotBlank()) {
-                                    onConfigChange(config.copy(presets = config.presets.renamed(preset.id, renamePresetText)))
-                                }
-                                renamingPresetId = null
-                            }) {
-                                Icon(Icons.Default.Check, contentDescription = "Confirm rename")
-                            }
-                            IconButton(onClick = { renamingPresetId = null }) {
-                                Icon(Icons.Default.Close, contentDescription = "Cancel rename")
-                            }
-                        } else {
-                            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                                Text(preset.name, style = MaterialTheme.typography.bodyLarge)
-                                Text(
-                                    preset.layout.description,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            IconButton(
-                                onClick = {
-                                    renamePresetText = preset.name
-                                    renamingPresetId = preset.id
-                                },
-                                enabled = !isBusy
-                            ) {
-                                Icon(Icons.Default.Edit, contentDescription = "Rename preset")
-                            }
-                            IconButton(
-                                onClick = { presetPendingDelete = preset },
-                                enabled = !isBusy
-                            ) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete preset")
-                            }
-                            Button(
-                                onClick = {
-                                    onExecuteAction(safeMode) { currentStatus ->
-                                        MonitorActions.applyTarget(
-                                            controller = controller,
-                                            currentStatus = currentStatus,
-                                            targetLayout = preset.layout,
-                                            targetPaneSources = preset.paneSources,
-                                            targetAudioSource = preset.audioSource
-                                        )
+                Spacer(modifier = Modifier.height(20.dp))
+                Text("Change layout", style = MaterialTheme.typography.labelLarge)
+                Spacer(modifier = Modifier.height(4.dp))
+                var expandedLayout by remember { mutableStateOf(false) }
+                Box {
+                    OutlinedButton(onClick = { expandedLayout = true }, enabled = !isBusy) {
+                        LayoutGlyph(status.layout ?: Layout.OFF)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(status.layout?.description ?: "Select Layout")
+                    }
+                    DropdownMenu(expanded = expandedLayout, onDismissRequest = { expandedLayout = false }) {
+                        Layout.entries.forEach { layout ->
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        LayoutGlyph(layout)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(layout.description)
                                     }
                                 },
-                                enabled = !isBusy
-                            ) {
-                                Text("Apply")
-                            }
-                        }
-                    }
-                    if (renamingPresetId != preset.id) {
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            paneSlotsFor(preset.layout).forEach { (channel, label) ->
-                                SourceChip(label, preset.paneSources[channel])
-                            }
+                                onClick = {
+                                    expandedLayout = false
+                                    onExecuteAction(safeMode) { _ ->
+                                        controller.setLayout(layout)
+                                    }
+                                }
+                            )
                         }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(20.dp))
+                Text("Source routing", style = MaterialTheme.typography.labelLarge)
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    val slots = paneSlotsFor(status.layout)
+                    slots.forEach { (channel, label) ->
+                        PaneSourceSelector(label, channel, controller, status, isBusy) { action -> onExecuteAction(safeMode, action) }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(28.dp))
                 HorizontalDivider()
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Presets
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Presets", style = MaterialTheme.typography.titleMedium)
+                    Button(onClick = { isSavingPreset = true }, enabled = !isBusy) {
+                        Text("Save Current as Preset")
+                    }
+                }
+
+                if (isSavingPreset) {
+                    Row(modifier = Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value = newPresetName,
+                            onValueChange = { newPresetName = it },
+                            label = { Text("Preset Name") },
+                            modifier = Modifier.weight(1f).testTag("newPresetNameField")
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(onClick = {
+                            if (newPresetName.isNotBlank() && status.layout != null) {
+                                val newPreset = Preset(
+                                    id = UUID.randomUUID().toString(),
+                                    name = newPresetName,
+                                    layout = status.layout,
+                                    paneSources = status.paneSources, // Needs accurate pane sources
+                                    audioSource = status.audioSource
+                                )
+                                onConfigChange(config.copy(presets = config.presets + newPreset))
+                            }
+                            isSavingPreset = false
+                            newPresetName = ""
+                        }) {
+                            Text("Save")
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                if (config.presets.isEmpty()) {
+                    Text(
+                        "No presets yet - save your current layout above to create one.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    config.presets.forEach { preset ->
+                        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (renamingPresetId == preset.id) {
+                                    OutlinedTextField(
+                                        value = renamePresetText,
+                                        onValueChange = { renamePresetText = it },
+                                        modifier = Modifier.weight(1f).padding(end = 8.dp).testTag("renamePresetField"),
+                                        singleLine = true
+                                    )
+                                    IconButton(onClick = {
+                                        if (renamePresetText.isNotBlank()) {
+                                            onConfigChange(config.copy(presets = config.presets.renamed(preset.id, renamePresetText)))
+                                        }
+                                        renamingPresetId = null
+                                    }) {
+                                        Icon(Icons.Default.Check, contentDescription = "Confirm rename")
+                                    }
+                                    IconButton(onClick = { renamingPresetId = null }) {
+                                        Icon(Icons.Default.Close, contentDescription = "Cancel rename")
+                                    }
+                                } else {
+                                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                        Text(preset.name, style = MaterialTheme.typography.bodyLarge)
+                                        Text(
+                                            preset.layout.description,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            renamePresetText = preset.name
+                                            renamingPresetId = preset.id
+                                        },
+                                        enabled = !isBusy
+                                    ) {
+                                        Icon(Icons.Default.Edit, contentDescription = "Rename preset")
+                                    }
+                                    IconButton(
+                                        onClick = { presetPendingDelete = preset },
+                                        enabled = !isBusy
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete preset")
+                                    }
+                                    Button(
+                                        onClick = {
+                                            onExecuteAction(safeMode) { currentStatus ->
+                                                MonitorActions.applyTarget(
+                                                    controller = controller,
+                                                    currentStatus = currentStatus,
+                                                    targetLayout = preset.layout,
+                                                    targetPaneSources = preset.paneSources,
+                                                    targetAudioSource = preset.audioSource
+                                                )
+                                            }
+                                        },
+                                        enabled = !isBusy
+                                    ) {
+                                        Text("Apply")
+                                    }
+                                }
+                            }
+                            if (renamingPresetId != preset.id) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    paneSlotsFor(preset.layout).forEach { (channel, label) ->
+                                        SourceChip(label, preset.paneSources[channel])
+                                    }
+                                }
+                            }
+                        }
+                        HorizontalDivider()
+                    }
+                }
             }
         }
     }

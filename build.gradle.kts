@@ -34,6 +34,8 @@ dependencies {
     // Test
     testImplementation(kotlin("test"))
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(compose.desktop.uiTestJUnit4)
+    testImplementation(compose.desktop.currentOs)
 }
 
 compose.desktop {

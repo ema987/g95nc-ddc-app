@@ -155,6 +155,8 @@ fun main() = application {
                             pendingChange = pendingChange,
                             recoveryExhausted = recoveryExhausted,
                             isBusy = isBusy,
+                            config = config,
+                            onConfigChange = { ConfigManager.updateConfig(it) },
                             onSettingsClick = { isSettingsOpen = true },
                             onConfirmChange = { pendingChange = null },
                             onRevertChange = {

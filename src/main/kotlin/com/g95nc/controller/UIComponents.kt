@@ -15,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -27,6 +28,8 @@ fun Dashboard(
     pendingChange: PendingChange?,
     recoveryExhausted: Boolean,
     isBusy: Boolean,
+    config: AppConfig,
+    onConfigChange: (AppConfig) -> Unit,
     onSettingsClick: () -> Unit,
     onConfirmChange: () -> Unit,
     onRevertChange: () -> Unit,
@@ -38,9 +41,9 @@ fun Dashboard(
     var newPresetName by remember { mutableStateOf("") }
     var renamingPresetId by remember { mutableStateOf<String?>(null) }
     var renamePresetText by remember { mutableStateOf("") }
-    // Single source of truth is ConfigManager - no separate local copy that can drift from
-    // what's actually persisted (and what the Settings modal shows).
-    val safeMode = ConfigManager.config.enableSafetyCountdown
+    // Single source of truth is the config passed in from above - no separate local copy that
+    // can drift from what's actually persisted (and what the Settings modal shows).
+    val safeMode = config.enableSafetyCountdown
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(
@@ -52,7 +55,7 @@ fun Dashboard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(
                     checked = safeMode,
-                    onCheckedChange = { ConfigManager.updateConfig(ConfigManager.config.copy(enableSafetyCountdown = it)) }
+                    onCheckedChange = { onConfigChange(config.copy(enableSafetyCountdown = it)) }
                 )
                 Text("Safe Mode", style = MaterialTheme.typography.caption)
                 Spacer(modifier = Modifier.width(8.dp))
@@ -191,7 +194,7 @@ fun Dashboard(
                     value = newPresetName,
                     onValueChange = { newPresetName = it },
                     label = { Text("Preset Name") },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f).testTag("newPresetNameField")
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(onClick = {
@@ -203,10 +206,7 @@ fun Dashboard(
                             paneSources = status.paneSources, // Needs accurate pane sources
                             audioSource = status.audioSource
                         )
-                        val updatedConfig = ConfigManager.config.copy(
-                            presets = ConfigManager.config.presets + newPreset
-                        )
-                        ConfigManager.updateConfig(updatedConfig)
+                        onConfigChange(config.copy(presets = config.presets + newPreset))
                     }
                     isSavingPreset = false
                     newPresetName = ""
@@ -218,7 +218,7 @@ fun Dashboard(
 
         Spacer(modifier = Modifier.height(16.dp))
         LazyColumn(modifier = Modifier.fillMaxWidth()) {
-            items(ConfigManager.config.presets, key = { it.id }) { preset ->
+            items(config.presets, key = { it.id }) { preset ->
                 Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), elevation = 4.dp) {
                     Row(
                         modifier = Modifier.padding(16.dp).fillMaxWidth(),
@@ -229,16 +229,12 @@ fun Dashboard(
                             OutlinedTextField(
                                 value = renamePresetText,
                                 onValueChange = { renamePresetText = it },
-                                modifier = Modifier.weight(1f).padding(end = 8.dp),
+                                modifier = Modifier.weight(1f).padding(end = 8.dp).testTag("renamePresetField"),
                                 singleLine = true
                             )
                             IconButton(onClick = {
                                 if (renamePresetText.isNotBlank()) {
-                                    ConfigManager.updateConfig(
-                                        ConfigManager.config.copy(
-                                            presets = ConfigManager.config.presets.renamed(preset.id, renamePresetText)
-                                        )
-                                    )
+                                    onConfigChange(config.copy(presets = config.presets.renamed(preset.id, renamePresetText)))
                                 }
                                 renamingPresetId = null
                             }) {
@@ -263,11 +259,7 @@ fun Dashboard(
                                 Icon(Icons.Default.Edit, contentDescription = "Rename preset")
                             }
                             IconButton(
-                                onClick = {
-                                    ConfigManager.updateConfig(
-                                        ConfigManager.config.copy(presets = ConfigManager.config.presets.withoutPreset(preset.id))
-                                    )
-                                },
+                                onClick = { onConfigChange(config.copy(presets = config.presets.withoutPreset(preset.id))) },
                                 enabled = !isBusy
                             ) {
                                 Icon(Icons.Default.Delete, contentDescription = "Delete preset")
@@ -382,15 +374,15 @@ fun SettingsModal(config: AppConfig, onSave: (AppConfig) -> Unit) {
             value = ddcPath,
             onValueChange = { ddcPath = it },
             label = { Text("Linux: ddcutil executable path") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth().testTag("ddcutilPathField")
         )
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         OutlinedTextField(
             value = bdPath,
             onValueChange = { bdPath = it },
             label = { Text("macOS: betterdisplaycli executable path") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth().testTag("betterdisplaycliPathField")
         )
         Spacer(modifier = Modifier.height(16.dp))
         

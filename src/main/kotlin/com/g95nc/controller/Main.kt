@@ -10,9 +10,30 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.delay
 
-// This is a minimal placeholder for the icon. In a real app, load an image.
-// For now we'll just use a default painter if possible, or omit the icon if null.
-fun main() = application {
+private val singleInstanceLock = SingleInstanceLock(
+    java.io.File(System.getProperty("user.home"), ".config/g95nc-controller/app.lock")
+)
+
+fun main() {
+    // Two instances polling the same ddcutil/betterdisplaycli channel contend with each other
+    // and produce the exact DDC/IPC timeouts this app exists to avoid - so only one may run.
+    if (!singleInstanceLock.acquire()) {
+        javax.swing.JOptionPane.showMessageDialog(
+            null,
+            "G95NC Controller is already running. Check your menu bar / system tray.",
+            "Already Running",
+            javax.swing.JOptionPane.INFORMATION_MESSAGE
+        )
+        return
+    }
+
+    application {
+        runMainApplication()
+    }
+}
+
+@Composable
+private fun ApplicationScope.runMainApplication() {
     var isSettingsOpen by remember { mutableStateOf(false) }
     var isDashboardOpen by remember { mutableStateOf(true) }
     

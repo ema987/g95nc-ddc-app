@@ -78,3 +78,23 @@ data class AppConfig(
     val betterdisplaycliPath: String = "betterdisplaycli",
     val enableSafetyCountdown: Boolean = true
 )
+
+fun List<Preset>.withoutPreset(id: String): List<Preset> = filterNot { it.id == id }
+
+fun List<Preset>.renamed(id: String, newName: String): List<Preset> =
+    map { if (it.id == id) it.copy(name = newName) else it }
+
+/** Human-readable per-pane routing for a preset, e.g. "Left: HDMI 1  ·  Right/Sub: DisplayPort". */
+fun formatPresetSources(preset: Preset): String {
+    val layout = preset.layout
+    val slots = when {
+        layout.name.startsWith("PBP_3") ->
+            listOf(PaneChannel.PANE_1 to "Left", PaneChannel.PANE_2 to "Middle", PaneChannel.PANE_3 to "Right")
+        layout.name.startsWith("PBP_2") || layout == Layout.PIP ->
+            listOf(PaneChannel.PANE_1 to "Left", PaneChannel.PANE_2 to "Right/Sub")
+        else -> listOf(PaneChannel.PANE_1 to "Main")
+    }
+    return slots.joinToString("  ·  ") { (channel, label) ->
+        "$label: ${preset.paneSources[channel]?.description ?: "—"}"
+    }
+}

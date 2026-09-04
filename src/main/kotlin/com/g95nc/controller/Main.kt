@@ -29,8 +29,20 @@ fun main() = application {
     var status by remember { mutableStateOf<MonitorStatus?>(null) }
     var pendingChange by remember { mutableStateOf<PendingChange?>(null) }
     var recoveryExhausted by remember { mutableStateOf(false) }
-    
+    // True while a monitor action is in flight. The dashboard stays showing the last known
+    // status during this (instead of blanking to a full-page spinner) and disables its controls.
+    var isBusy by remember { mutableStateOf(false) }
+
     val scope = rememberCoroutineScope()
+
+    suspend fun runBusy(block: suspend () -> Unit) {
+        isBusy = true
+        try {
+            block()
+        } finally {
+            isBusy = false
+        }
+    }
 
     LaunchedEffect(controller) {
         isToolAvailable = controller.isToolAvailable()
@@ -51,19 +63,19 @@ fun main() = application {
             // LAUNCH IN SCOPE SO IT SURVIVES PENDINGCHANGE=NULL
             scope.launch {
                 val currentStatus = status
-
                 pendingChange = null
-                status = null // Show spinner
 
-                MonitorActions.applyTarget(
-                    controller = controller,
-                    currentStatus = currentStatus,
-                    targetLayout = change.previousStatus.layout,
-                    targetPaneSources = change.previousStatus.paneSources,
-                    targetAudioSource = change.previousStatus.audioSource
-                )
+                runBusy {
+                    MonitorActions.applyTarget(
+                        controller = controller,
+                        currentStatus = currentStatus,
+                        targetLayout = change.previousStatus.layout,
+                        targetPaneSources = change.previousStatus.paneSources,
+                        targetAudioSource = change.previousStatus.audioSource
+                    )
 
-                status = controller.getStatus()
+                    status = controller.getStatus()
+                }
             }
         }
     }
@@ -93,21 +105,23 @@ fun main() = application {
             // Presets
             config.presets.forEach { preset ->
                 Item("Preset: ${preset.name}", onClick = {
-                    scope.launch {
-                        val currentStatus = status
-                        status = null
+                    if (!isBusy) {
+                        scope.launch {
+                            val currentStatus = status
+                            runBusy {
+                                MonitorActions.applyTarget(
+                                    controller = controller,
+                                    currentStatus = currentStatus,
+                                    targetLayout = preset.layout,
+                                    targetPaneSources = preset.paneSources,
+                                    targetAudioSource = preset.audioSource
+                                )
 
-                        MonitorActions.applyTarget(
-                            controller = controller,
-                            currentStatus = currentStatus,
-                            targetLayout = preset.layout,
-                            targetPaneSources = preset.paneSources,
-                            targetAudioSource = preset.audioSource
-                        )
-
-                        status = controller.getStatus()
-                        if (currentStatus != null && ConfigManager.config.enableSafetyCountdown) {
-                            pendingChange = PendingChange(currentStatus, 10)
+                                status = controller.getStatus()
+                                if (currentStatus != null && ConfigManager.config.enableSafetyCountdown) {
+                                    pendingChange = PendingChange(currentStatus, 10)
+                                }
+                            }
                         }
                     }
                 })
@@ -140,48 +154,55 @@ fun main() = application {
                             controller = controller,
                             pendingChange = pendingChange,
                             recoveryExhausted = recoveryExhausted,
+                            isBusy = isBusy,
                             onSettingsClick = { isSettingsOpen = true },
                             onConfirmChange = { pendingChange = null },
                             onRevertChange = {
                                 val change = pendingChange
-                                if (change != null) {
+                                if (change != null && !isBusy) {
                                     scope.launch {
                                         val currentStatus = status
-
                                         pendingChange = null
-                                        status = null
 
-                                        MonitorActions.applyTarget(
-                                            controller = controller,
-                                            currentStatus = currentStatus,
-                                            targetLayout = change.previousStatus.layout,
-                                            targetPaneSources = change.previousStatus.paneSources,
-                                            targetAudioSource = change.previousStatus.audioSource
-                                        )
+                                        runBusy {
+                                            MonitorActions.applyTarget(
+                                                controller = controller,
+                                                currentStatus = currentStatus,
+                                                targetLayout = change.previousStatus.layout,
+                                                targetPaneSources = change.previousStatus.paneSources,
+                                                targetAudioSource = change.previousStatus.audioSource
+                                            )
 
-                                        status = controller.getStatus()
+                                            status = controller.getStatus()
+                                        }
                                     }
                                 }
                             },
                             onExecuteAction = { safeMode, action ->
-                                scope.launch {
-                                    val currentStatus = status
-                                    status = null
-                                    action(currentStatus)
-                                    status = controller.getStatus()
-                                    if (currentStatus != null && safeMode) {
-                                        pendingChange = PendingChange(currentStatus, 15)
+                                if (!isBusy) {
+                                    scope.launch {
+                                        val currentStatus = status
+                                        runBusy {
+                                            action(currentStatus)
+                                            status = controller.getStatus()
+                                            if (currentStatus != null && safeMode) {
+                                                pendingChange = PendingChange(currentStatus, 15)
+                                            }
+                                        }
                                     }
                                 }
                             },
                             onRefresh = {
-                                scope.launch {
-                                    recoveryExhausted = false
-                                    status = null
-                                    val result = controller.getStatus()
-                                    status = result
-                                    if (result == null) {
-                                        recoveryExhausted = true
+                                if (!isBusy) {
+                                    scope.launch {
+                                        runBusy {
+                                            recoveryExhausted = false
+                                            val result = controller.getStatus()
+                                            status = result
+                                            if (result == null) {
+                                                recoveryExhausted = true
+                                            }
+                                        }
                                     }
                                 }
                             }

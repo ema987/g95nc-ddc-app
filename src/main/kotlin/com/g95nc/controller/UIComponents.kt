@@ -5,6 +5,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.*
@@ -22,6 +26,7 @@ fun Dashboard(
     controller: MonitorController,
     pendingChange: PendingChange?,
     recoveryExhausted: Boolean,
+    isBusy: Boolean,
     onSettingsClick: () -> Unit,
     onConfirmChange: () -> Unit,
     onRevertChange: () -> Unit,
@@ -31,7 +36,11 @@ fun Dashboard(
     val scope = rememberCoroutineScope()
     var isSavingPreset by remember { mutableStateOf(false) }
     var newPresetName by remember { mutableStateOf("") }
-    var safeMode by remember { mutableStateOf(ConfigManager.config.enableSafetyCountdown) }
+    var renamingPresetId by remember { mutableStateOf<String?>(null) }
+    var renamePresetText by remember { mutableStateOf("") }
+    // Single source of truth is ConfigManager - no separate local copy that can drift from
+    // what's actually persisted (and what the Settings modal shows).
+    val safeMode = ConfigManager.config.enableSafetyCountdown
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(
@@ -41,10 +50,13 @@ fun Dashboard(
         ) {
             Text("Dashboard", style = MaterialTheme.typography.h5)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = safeMode, onCheckedChange = { safeMode = it })
+                Checkbox(
+                    checked = safeMode,
+                    onCheckedChange = { ConfigManager.updateConfig(ConfigManager.config.copy(enableSafetyCountdown = it)) }
+                )
                 Text("Safe Mode", style = MaterialTheme.typography.caption)
                 Spacer(modifier = Modifier.width(8.dp))
-                IconButton(onClick = onRefresh) {
+                IconButton(onClick = onRefresh, enabled = !isBusy) {
                     Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                 }
                 IconButton(onClick = onSettingsClick) {
@@ -52,7 +64,13 @@ fun Dashboard(
                 }
             }
         }
-        
+
+        if (isBusy) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        } else {
+            Spacer(modifier = Modifier.height(4.dp))
+        }
+
         Divider(modifier = Modifier.padding(vertical = 16.dp))
         
         if (pendingChange != null) {
@@ -118,7 +136,7 @@ fun Dashboard(
         Text("Change Layout:", fontWeight = FontWeight.Bold)
         var expandedLayout by remember { mutableStateOf(false) }
         Box {
-            OutlinedButton(onClick = { expandedLayout = true }) {
+            OutlinedButton(onClick = { expandedLayout = true }, enabled = !isBusy) {
                 Text(status.layout?.description ?: "Select Layout")
             }
             DropdownMenu(expanded = expandedLayout, onDismissRequest = { expandedLayout = false }) {
@@ -140,14 +158,14 @@ fun Dashboard(
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             val is3Way = status.layout?.name?.startsWith("PBP_3") == true
             val is2WayOrPip = status.layout?.name?.startsWith("PBP_2") == true || status.layout == Layout.PIP
-            
-            PaneSourceSelector(if (is3Way || is2WayOrPip) "Left" else "Main", PaneChannel.PANE_1, controller, status) { action -> onExecuteAction(safeMode, action) }
-            
+
+            PaneSourceSelector(if (is3Way || is2WayOrPip) "Left" else "Main", PaneChannel.PANE_1, controller, status, isBusy) { action -> onExecuteAction(safeMode, action) }
+
             if (is3Way) {
-                PaneSourceSelector("Middle", PaneChannel.PANE_2, controller, status) { action -> onExecuteAction(safeMode, action) }
-                PaneSourceSelector("Right", PaneChannel.PANE_3, controller, status) { action -> onExecuteAction(safeMode, action) }
+                PaneSourceSelector("Middle", PaneChannel.PANE_2, controller, status, isBusy) { action -> onExecuteAction(safeMode, action) }
+                PaneSourceSelector("Right", PaneChannel.PANE_3, controller, status, isBusy) { action -> onExecuteAction(safeMode, action) }
             } else if (is2WayOrPip) {
-                PaneSourceSelector("Right/Sub", PaneChannel.PANE_2, controller, status) { action -> onExecuteAction(safeMode, action) }
+                PaneSourceSelector("Right/Sub", PaneChannel.PANE_2, controller, status, isBusy) { action -> onExecuteAction(safeMode, action) }
             }
         }
 
@@ -162,7 +180,7 @@ fun Dashboard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("Presets", style = MaterialTheme.typography.h6)
-            Button(onClick = { isSavingPreset = true }) {
+            Button(onClick = { isSavingPreset = true }, enabled = !isBusy) {
                 Text("Save Current as Preset")
             }
         }
@@ -200,29 +218,76 @@ fun Dashboard(
 
         Spacer(modifier = Modifier.height(16.dp))
         LazyColumn(modifier = Modifier.fillMaxWidth()) {
-            items(ConfigManager.config.presets) { preset ->
+            items(ConfigManager.config.presets, key = { it.id }) { preset ->
                 Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), elevation = 4.dp) {
                     Row(
                         modifier = Modifier.padding(16.dp).fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Text(preset.name, fontWeight = FontWeight.Bold)
-                            Text(preset.layout.description, style = MaterialTheme.typography.caption)
-                        }
-                        Button(onClick = {
-                            onExecuteAction(safeMode) { currentStatus ->
-                                MonitorActions.applyTarget(
-                                    controller = controller,
-                                    currentStatus = currentStatus,
-                                    targetLayout = preset.layout,
-                                    targetPaneSources = preset.paneSources,
-                                    targetAudioSource = preset.audioSource
-                                )
+                        if (renamingPresetId == preset.id) {
+                            OutlinedTextField(
+                                value = renamePresetText,
+                                onValueChange = { renamePresetText = it },
+                                modifier = Modifier.weight(1f).padding(end = 8.dp),
+                                singleLine = true
+                            )
+                            IconButton(onClick = {
+                                if (renamePresetText.isNotBlank()) {
+                                    ConfigManager.updateConfig(
+                                        ConfigManager.config.copy(
+                                            presets = ConfigManager.config.presets.renamed(preset.id, renamePresetText)
+                                        )
+                                    )
+                                }
+                                renamingPresetId = null
+                            }) {
+                                Icon(Icons.Default.Check, contentDescription = "Confirm rename")
                             }
-                        }) {
-                            Text("Apply")
+                            IconButton(onClick = { renamingPresetId = null }) {
+                                Icon(Icons.Default.Close, contentDescription = "Cancel rename")
+                            }
+                        } else {
+                            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                Text(preset.name, fontWeight = FontWeight.Bold)
+                                Text(preset.layout.description, style = MaterialTheme.typography.caption)
+                                Text(formatPresetSources(preset), style = MaterialTheme.typography.caption)
+                            }
+                            IconButton(
+                                onClick = {
+                                    renamePresetText = preset.name
+                                    renamingPresetId = preset.id
+                                },
+                                enabled = !isBusy
+                            ) {
+                                Icon(Icons.Default.Edit, contentDescription = "Rename preset")
+                            }
+                            IconButton(
+                                onClick = {
+                                    ConfigManager.updateConfig(
+                                        ConfigManager.config.copy(presets = ConfigManager.config.presets.withoutPreset(preset.id))
+                                    )
+                                },
+                                enabled = !isBusy
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete preset")
+                            }
+                            Button(
+                                onClick = {
+                                    onExecuteAction(safeMode) { currentStatus ->
+                                        MonitorActions.applyTarget(
+                                            controller = controller,
+                                            currentStatus = currentStatus,
+                                            targetLayout = preset.layout,
+                                            targetPaneSources = preset.paneSources,
+                                            targetAudioSource = preset.audioSource
+                                        )
+                                    }
+                                },
+                                enabled = !isBusy
+                            ) {
+                                Text("Apply")
+                            }
                         }
                     }
                 }
@@ -237,15 +302,16 @@ fun PaneSourceSelector(
     channel: PaneChannel,
     controller: MonitorController,
     status: MonitorStatus,
+    isBusy: Boolean,
     onExecuteAction: (suspend (MonitorStatus?) -> Unit) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     val currentSource = status.paneSources[channel]
-    
+
     Column {
         Text(label, style = MaterialTheme.typography.caption)
         Box {
-            OutlinedButton(onClick = { expanded = true }) {
+            OutlinedButton(onClick = { expanded = true }, enabled = !isBusy) {
                 Text(currentSource?.description ?: "Select Source")
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {

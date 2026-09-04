@@ -28,6 +28,7 @@ fun main() = application {
     var isToolAvailable by remember { mutableStateOf(true) }
     var status by remember { mutableStateOf<MonitorStatus?>(null) }
     var pendingChange by remember { mutableStateOf<PendingChange?>(null) }
+    var recoveryExhausted by remember { mutableStateOf(false) }
     
     val scope = rememberCoroutineScope()
 
@@ -68,16 +69,16 @@ fun main() = application {
     }
 
     // Recovery Polling: if status is null (e.g. after a failed DDC read during a monitor reboot)
-    // we poll every 3 seconds to recover the connection, but stop polling once we succeed!
+    // we poll to recover the connection, but give up after a bounded number of attempts instead
+    // of retrying forever - the user can still hit Refresh manually (see onRefresh below).
     LaunchedEffect(status, isDashboardOpen, isToolAvailable) {
         if (isDashboardOpen && isToolAvailable && status == null && pendingChange == null) {
-            while (true) {
-                val newStatus = controller.getStatus()
-                if (newStatus != null) {
-                    status = newStatus
-                    break
-                }
-                delay(3000)
+            recoveryExhausted = false
+            val recovered = RecoveryPoller.pollUntilRecovered { controller.getStatus() }
+            if (recovered != null) {
+                status = recovered
+            } else {
+                recoveryExhausted = true
             }
         }
     }
@@ -138,6 +139,7 @@ fun main() = application {
                             status = status,
                             controller = controller,
                             pendingChange = pendingChange,
+                            recoveryExhausted = recoveryExhausted,
                             onSettingsClick = { isSettingsOpen = true },
                             onConfirmChange = { pendingChange = null },
                             onRevertChange = {
@@ -174,8 +176,13 @@ fun main() = application {
                             },
                             onRefresh = {
                                 scope.launch {
+                                    recoveryExhausted = false
                                     status = null
-                                    status = controller.getStatus()
+                                    val result = controller.getStatus()
+                                    status = result
+                                    if (result == null) {
+                                        recoveryExhausted = true
+                                    }
                                 }
                             }
                         )

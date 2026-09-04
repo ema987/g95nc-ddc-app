@@ -21,6 +21,7 @@ fun Dashboard(
     status: MonitorStatus?,
     controller: MonitorController,
     pendingChange: PendingChange?,
+    recoveryExhausted: Boolean,
     onSettingsClick: () -> Unit,
     onConfirmChange: () -> Unit,
     onRevertChange: () -> Unit,
@@ -90,9 +91,20 @@ fun Dashboard(
         if (status == null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator()
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Loading status or unable to read from monitor...")
+                    if (recoveryExhausted) {
+                        Text(
+                            "Couldn't reach the monitor after several attempts.",
+                            color = MaterialTheme.colors.error
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(onClick = onRefresh) {
+                            Text("Try Again")
+                        }
+                    } else {
+                        CircularProgressIndicator()
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Loading status or waiting for the monitor to respond...")
+                    }
                 }
             }
             return

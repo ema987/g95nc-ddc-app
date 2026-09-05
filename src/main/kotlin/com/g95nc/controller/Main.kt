@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.*
 import kotlinx.coroutines.launch
@@ -23,6 +24,21 @@ private val singleInstanceLock = SingleInstanceLock(
 // Set by the macOS "About G95NC Controller" menu item's handler (registered in main(), fires on
 // an AWT/AppKit callback outside Compose's composition) so runMainApplication() can show it.
 private var showAboutDialog by mutableStateOf(false)
+
+/** A height that comfortably fits the dashboard's content (diagram + layout picker + a couple of
+ * presets) without the large empty margin a fixed tall default leaves once the diagram is small -
+ * capped to the actual screen so it's never taller than the viewport on a small display. Anything
+ * beyond this (many presets, the rename/save-preset fields) is still reachable via the existing
+ * scrollable content area. */
+private fun preferredDashboardHeight(): Dp {
+    val desired = 700.dp
+    val usableScreenHeight = try {
+        java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.height.dp
+    } catch (e: Exception) {
+        return desired
+    }
+    return minOf(desired, usableScreenHeight - 40.dp)
+}
 
 fun main() {
     // Must be set (and the Dock icon applied) before any AWT/Swing/Compose window is created -
@@ -240,7 +256,7 @@ private fun ApplicationScope.runMainApplication() {
             onCloseRequest = { isDashboardOpen = false },
             title = AppInfo.NAME,
             icon = AppIconPainter,
-            state = rememberWindowState(width = 680.dp, height = 920.dp)
+            state = rememberWindowState(width = 680.dp, height = preferredDashboardHeight())
         ) {
             AppTheme(themeMode = config.themeMode) {
                 Surface(modifier = Modifier.fillMaxSize()) {

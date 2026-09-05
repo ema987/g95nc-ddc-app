@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cable
 import androidx.compose.material.icons.filled.QuestionMark
 import androidx.compose.material.icons.filled.SettingsInputHdmi
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -272,6 +273,28 @@ fun SourceChip(label: String, source: SourceCode?, modifier: Modifier = Modifier
         )
         Spacer(Modifier.width(4.dp))
         Text("$label: ${source?.description ?: "—"}", style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+/** Small chip for a preset's routed audio pane (VCP 0xE8) - same visual grammar as [SourceChip],
+ * shown alongside the per-pane chips when the preset captured an audio choice. */
+@Composable
+fun AudioChip(label: String, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(horizontal = 6.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+            contentDescription = null,
+            modifier = Modifier.size(12.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.width(4.dp))
+        Text("Audio: $label", style = MaterialTheme.typography.labelSmall)
     }
 }
 

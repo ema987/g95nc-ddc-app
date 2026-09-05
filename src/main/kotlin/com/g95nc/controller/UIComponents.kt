@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -181,6 +182,8 @@ fun Dashboard(
                     }
                 }
 
+                AudioSourceSelector(status, controller, isBusy) { action -> onExecuteAction(safeMode, action) }
+
                 Spacer(modifier = Modifier.height(28.dp))
                 HorizontalDivider()
                 Spacer(modifier = Modifier.height(16.dp))
@@ -338,10 +341,16 @@ fun Dashboard(
                                 }
                             }
                             if (renamingPresetId != preset.id) {
+                                val slots = paneSlotsFor(preset.layout)
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    paneSlotsFor(preset.layout).forEach { (channel, label) ->
+                                    slots.forEach { (channel, label) ->
                                         SourceChip(label, preset.paneSources[channel])
+                                    }
+                                    if (slots.size > 1) {
+                                        slots.firstOrNull { it.first.channel == preset.audioSource }?.let { (_, label) ->
+                                            AudioChip(label)
+                                        }
                                     }
                                 }
                             }
@@ -372,6 +381,51 @@ fun Dashboard(
                 }
             }
         )
+    }
+}
+
+/** PBP/PIP audio only has one "which pane are we listening to" control (VCP 0xE8), not a
+ * per-pane one - so unlike layout/pane sources, this is a single picker, and only meaningful once
+ * there's more than one pane to choose between. */
+@Composable
+private fun AudioSourceSelector(
+    status: MonitorStatus,
+    controller: MonitorController,
+    isBusy: Boolean,
+    onExecuteAction: (suspend (MonitorStatus?) -> Unit) -> Unit
+) {
+    val slots = paneSlotsFor(status.layout)
+    if (slots.size < 2) return
+
+    var expanded by remember { mutableStateOf(false) }
+    val currentLabel = slots.firstOrNull { it.first.channel == status.audioSource }?.second
+        ?: "Unknown (0x${status.audioSource.toString(16)})"
+
+    Spacer(modifier = Modifier.height(20.dp))
+    Text("Audio source", style = MaterialTheme.typography.labelLarge)
+    Spacer(modifier = Modifier.height(4.dp))
+    Box {
+        OutlinedButton(
+            onClick = { expanded = true },
+            enabled = !isBusy,
+            modifier = Modifier.testTag("audioSourceButton")
+        ) {
+            Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(currentLabel)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            slots.forEach { (channel, label) ->
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    modifier = Modifier.testTag("audioSourceOption_${channel.name}"),
+                    onClick = {
+                        expanded = false
+                        onExecuteAction { _ -> controller.setAudioSource(channel.channel) }
+                    }
+                )
+            }
+        }
     }
 }
 

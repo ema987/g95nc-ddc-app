@@ -154,6 +154,7 @@ private fun ApplicationScope.runMainApplication() {
     var isBusy by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
+    val trayState = rememberTrayState()
 
     suspend fun runBusy(block: suspend () -> Unit) {
         isBusy = true
@@ -218,6 +219,7 @@ private fun ApplicationScope.runMainApplication() {
     // Tray Icon
     Tray(
         icon = TrayIcon,
+        state = trayState,
         menu = {
             Item("Open Dashboard", onClick = { isDashboardOpen = true })
             Item("Settings", onClick = { isSettingsOpen = true })
@@ -237,7 +239,21 @@ private fun ApplicationScope.runMainApplication() {
                                     targetAudioSource = preset.audioSource
                                 )
 
-                                status = controller.getStatus()
+                                val newStatus = controller.getStatus()
+                                status = newStatus
+
+                                // Applying from the tray has no window open to show the result in,
+                                // so confirm it via a system notification instead - the same
+                                // matchesStatus() check that drives the "Active" badge decides
+                                // whether the readback actually landed on the target.
+                                trayState.sendNotification(
+                                    if (newStatus != null && preset.matchesStatus(newStatus)) {
+                                        Notification(AppInfo.NAME, "Applied preset \"${preset.name}\"", Notification.Type.Info)
+                                    } else {
+                                        Notification(AppInfo.NAME, "Couldn't confirm preset \"${preset.name}\" was applied", Notification.Type.Warning)
+                                    }
+                                )
+
                                 if (currentStatus != null && ConfigManager.config.enableSafetyCountdown) {
                                     pendingChange = PendingChange(currentStatus, 10)
                                 }

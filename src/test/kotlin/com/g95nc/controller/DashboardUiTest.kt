@@ -2,6 +2,8 @@ package com.g95nc.controller
 
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.isToggleable
@@ -137,6 +139,34 @@ class DashboardUiTest {
         composeRule.onNodeWithText(SourceCode.DP.description).performClick()
 
         assertEquals(FakeMonitorController.Call.SetSource(PaneChannel.PANE_2, SourceCode.DP), controller.calls.single())
+    }
+
+    @Test
+    fun testAudioSourceButton_hiddenWhenLayoutHasOnlyOnePane() {
+        setDashboard(status = status(Layout.OFF, mapOf(PaneChannel.PANE_1 to SourceCode.HDMI1), audio = 0))
+
+        composeRule.onAllNodes(hasTestTag("audioSourceButton")).assertCountEquals(0)
+    }
+
+    @Test
+    fun testAudioSourceButton_showsCurrentPaneAndCallsSetAudioSourceOnSelection() {
+        val controller = FakeMonitorController()
+        setDashboard(
+            status = status(
+                Layout.PBP_2_50_50,
+                mapOf(PaneChannel.PANE_1 to SourceCode.HDMI1, PaneChannel.PANE_2 to SourceCode.HDMI2),
+                audio = PaneChannel.PANE_1.channel
+            ),
+            controller = controller,
+            onExecuteAction = { _, action -> runBlocking { action(null) } }
+        )
+
+        composeRule.onNodeWithTag("audioSourceButton").assertIsDisplayed().assertTextContains("Left")
+
+        composeRule.onNodeWithTag("audioSourceButton").performClick()
+        composeRule.onNodeWithTag("audioSourceOption_PANE_2").performClick()
+
+        assertEquals(FakeMonitorController.Call.SetAudioSource(PaneChannel.PANE_2.channel), controller.calls.single())
     }
 
     @Test
@@ -289,6 +319,42 @@ class DashboardUiTest {
         )
 
         composeRule.onAllNodesWithText("Active").assertCountEquals(0)
+    }
+
+    @Test
+    fun testPresetAudioChip_showsRoutedPaneWhenLayoutHasMoreThanOnePane() {
+        val preset = Preset(
+            id = "p1", name = "A", layout = Layout.PBP_2_50_50,
+            paneSources = mapOf(PaneChannel.PANE_1 to SourceCode.HDMI1, PaneChannel.PANE_2 to SourceCode.HDMI2),
+            audioSource = PaneChannel.PANE_2.channel
+        )
+        setDashboard(config = AppConfig(presets = listOf(preset)))
+
+        composeRule.onNodeWithText("Audio: Right/Sub").assertIsDisplayed()
+    }
+
+    @Test
+    fun testPresetAudioChip_absentWhenPresetHasNoAudioSourceRecorded() {
+        val preset = Preset(
+            id = "p1", name = "A", layout = Layout.PBP_2_50_50,
+            paneSources = mapOf(PaneChannel.PANE_1 to SourceCode.HDMI1, PaneChannel.PANE_2 to SourceCode.HDMI2),
+            audioSource = null
+        )
+        setDashboard(config = AppConfig(presets = listOf(preset)))
+
+        composeRule.onAllNodesWithText("Audio:", substring = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun testPresetAudioChip_absentWhenLayoutHasOnlyOnePane() {
+        val preset = Preset(
+            id = "p1", name = "A", layout = Layout.OFF,
+            paneSources = mapOf(PaneChannel.PANE_1 to SourceCode.HDMI1),
+            audioSource = 0
+        )
+        setDashboard(config = AppConfig(presets = listOf(preset)))
+
+        composeRule.onAllNodesWithText("Audio:", substring = true).assertCountEquals(0)
     }
 
     @Test

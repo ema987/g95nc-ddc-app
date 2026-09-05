@@ -146,7 +146,7 @@ fun Dashboard(
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    status.layout?.description ?: "Unknown (0x${status.layoutStatusRaw.toString(16)})",
+                    status.layout?.description ?: "Unknown layout",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -399,7 +399,7 @@ private fun AudioSourceSelector(
 
     var expanded by remember { mutableStateOf(false) }
     val currentLabel = slots.firstOrNull { it.first.channel == status.audioSource }?.second
-        ?: "Unknown (0x${status.audioSource.toString(16)})"
+        ?: "Unknown"
 
     Spacer(modifier = Modifier.height(20.dp))
     Text("Audio source", style = MaterialTheme.typography.labelLarge)

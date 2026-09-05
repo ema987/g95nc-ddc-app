@@ -433,24 +433,32 @@ fun PaneSourceSelector(
 }
 
 @Composable
-fun OnboardingWizard(onOpenSettings: () -> Unit, onCheckAgain: () -> Unit) {
+fun OnboardingWizard(
+    onOpenSettings: () -> Unit,
+    onCheckAgain: () -> Unit,
+    platform: Platform = Platform.detect()
+) {
     Column(
         modifier = Modifier.fillMaxSize().padding(32.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        val os = System.getProperty("os.name").lowercase()
         Text("Required Tools Not Found", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.error)
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (os.contains("mac")) {
-            Text("This app requires 'betterdisplaycli' on macOS.")
-            Text("You can install it via Homebrew: 'brew install betterdisplaycli' or configure its path if already installed.")
-        } else if (os.contains("nix") || os.contains("nux")) {
-            Text("This app requires 'ddcutil' on Linux.")
-            Text("Please install it via your package manager (e.g. 'sudo apt install ddcutil') or configure its path.")
-        } else if (os.contains("win")) {
-            Text("Windows native tools failed to load.")
+        when (platform) {
+            Platform.MAC -> {
+                Text("This app requires 'betterdisplaycli' on macOS.")
+                Text("You can install it via Homebrew: 'brew install betterdisplaycli' or configure its path if already installed.")
+            }
+            Platform.LINUX -> {
+                Text("This app requires 'ddcutil' on Linux.")
+                Text("Please install it via your package manager (e.g. 'sudo apt install ddcutil') or configure its path.")
+            }
+            Platform.WINDOWS -> {
+                Text("Windows native tools failed to load.")
+            }
+            Platform.OTHER -> {}
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -470,7 +478,8 @@ fun OnboardingWizard(onOpenSettings: () -> Unit, onCheckAgain: () -> Unit) {
 fun SettingsModal(
     config: AppConfig,
     onSave: (AppConfig) -> Unit,
-    commandRunner: CommandRunner = ProcessUtils
+    commandRunner: CommandRunner = ProcessUtils,
+    platform: Platform = Platform.detect()
 ) {
     var ddcPath by remember { mutableStateOf(config.ddcutilPath) }
     var bdPath by remember { mutableStateOf(config.betterdisplaycliPath) }
@@ -485,63 +494,78 @@ fun SettingsModal(
         Text("Settings", style = MaterialTheme.typography.titleLarge)
         Spacer(modifier = Modifier.height(24.dp))
 
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            OutlinedTextField(
-                value = ddcPath,
-                onValueChange = { ddcPath = it; ddcTestResult = null },
-                label = { Text("Linux: ddcutil executable path") },
-                modifier = Modifier.weight(1f).testTag("ddcutilPathField")
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            if (isTestingDdc) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            } else {
-                TextButton(onClick = {
-                    scope.launch {
-                        isTestingDdc = true
-                        ddcTestResult = isToolReachable(commandRunner, ddcPath, listOf("--version"))
-                        isTestingDdc = false
+        // Only the tool this platform actually uses makes sense to configure here - showing a
+        // "Linux: ddcutil path" field while running on macOS just invites confusion.
+        if (platform == Platform.LINUX) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = ddcPath,
+                    onValueChange = { ddcPath = it; ddcTestResult = null },
+                    label = { Text("ddcutil executable path") },
+                    modifier = Modifier.weight(1f).testTag("ddcutilPathField")
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                if (isTestingDdc) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                } else {
+                    TextButton(onClick = {
+                        scope.launch {
+                            isTestingDdc = true
+                            ddcTestResult = isToolReachable(commandRunner, ddcPath, listOf("--version"))
+                            isTestingDdc = false
+                        }
+                    }) {
+                        Text("Test")
                     }
-                }) {
-                    Text("Test")
+                }
+                when (ddcTestResult) {
+                    true -> Icon(Icons.Default.CheckCircle, contentDescription = "ddcutil path is reachable", tint = AppColors.signalActive)
+                    false -> Icon(Icons.Default.Error, contentDescription = "ddcutil path is not reachable", tint = MaterialTheme.colorScheme.error)
+                    null -> {}
                 }
             }
-            when (ddcTestResult) {
-                true -> Icon(Icons.Default.CheckCircle, contentDescription = "ddcutil path is reachable", tint = AppColors.signalActive)
-                false -> Icon(Icons.Default.Error, contentDescription = "ddcutil path is not reachable", tint = MaterialTheme.colorScheme.error)
-                null -> {}
-            }
+            Spacer(modifier = Modifier.height(16.dp))
         }
-        Spacer(modifier = Modifier.height(16.dp))
 
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            OutlinedTextField(
-                value = bdPath,
-                onValueChange = { bdPath = it; bdTestResult = null },
-                label = { Text("macOS: betterdisplaycli executable path") },
-                modifier = Modifier.weight(1f).testTag("betterdisplaycliPathField")
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            if (isTestingBd) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            } else {
-                TextButton(onClick = {
-                    scope.launch {
-                        isTestingBd = true
-                        bdTestResult = isToolReachable(commandRunner, bdPath, listOf("-v"))
-                        isTestingBd = false
+        if (platform == Platform.MAC) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = bdPath,
+                    onValueChange = { bdPath = it; bdTestResult = null },
+                    label = { Text("betterdisplaycli executable path") },
+                    modifier = Modifier.weight(1f).testTag("betterdisplaycliPathField")
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                if (isTestingBd) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                } else {
+                    TextButton(onClick = {
+                        scope.launch {
+                            isTestingBd = true
+                            bdTestResult = isToolReachable(commandRunner, bdPath, listOf("-v"))
+                            isTestingBd = false
+                        }
+                    }) {
+                        Text("Test")
                     }
-                }) {
-                    Text("Test")
+                }
+                when (bdTestResult) {
+                    true -> Icon(Icons.Default.CheckCircle, contentDescription = "betterdisplaycli path is reachable", tint = AppColors.signalActive)
+                    false -> Icon(Icons.Default.Error, contentDescription = "betterdisplaycli path is not reachable", tint = MaterialTheme.colorScheme.error)
+                    null -> {}
                 }
             }
-            when (bdTestResult) {
-                true -> Icon(Icons.Default.CheckCircle, contentDescription = "betterdisplaycli path is reachable", tint = AppColors.signalActive)
-                false -> Icon(Icons.Default.Error, contentDescription = "betterdisplaycli path is not reachable", tint = MaterialTheme.colorScheme.error)
-                null -> {}
-            }
+            Spacer(modifier = Modifier.height(16.dp))
         }
-        Spacer(modifier = Modifier.height(16.dp))
+
+        if (platform == Platform.WINDOWS || platform == Platform.OTHER) {
+            Text(
+                "No additional configuration is needed on this platform.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(

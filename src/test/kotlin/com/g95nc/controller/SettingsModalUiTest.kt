@@ -29,7 +29,8 @@ class SettingsModalUiTest {
             AppTheme {
                 SettingsModal(
                     config = AppConfig(ddcutilPath = "ddcutil", betterdisplaycliPath = "betterdisplaycli", enableSafetyCountdown = true),
-                    onSave = { saved = it }
+                    onSave = { saved = it },
+                    platform = Platform.LINUX
                 )
             }
         }
@@ -51,7 +52,7 @@ class SettingsModalUiTest {
         val runner = FakeCommandRunner { "ddcutil 2.1.0" }
         composeRule.setContent {
             AppTheme {
-                SettingsModal(config = AppConfig(ddcutilPath = "ddcutil"), onSave = {}, commandRunner = runner)
+                SettingsModal(config = AppConfig(ddcutilPath = "ddcutil"), onSave = {}, commandRunner = runner, platform = Platform.LINUX)
             }
         }
 
@@ -66,7 +67,7 @@ class SettingsModalUiTest {
         val runner = FakeCommandRunner { throw RuntimeException("not found") }
         composeRule.setContent {
             AppTheme {
-                SettingsModal(config = AppConfig(ddcutilPath = "/bad/path"), onSave = {}, commandRunner = runner)
+                SettingsModal(config = AppConfig(ddcutilPath = "/bad/path"), onSave = {}, commandRunner = runner, platform = Platform.LINUX)
             }
         }
 
@@ -81,7 +82,7 @@ class SettingsModalUiTest {
         val runner = FakeCommandRunner { "ddcutil 2.1.0" }
         composeRule.setContent {
             AppTheme {
-                SettingsModal(config = AppConfig(ddcutilPath = "ddcutil"), onSave = {}, commandRunner = runner)
+                SettingsModal(config = AppConfig(ddcutilPath = "ddcutil"), onSave = {}, commandRunner = runner, platform = Platform.LINUX)
             }
         }
 
@@ -92,5 +93,42 @@ class SettingsModalUiTest {
         composeRule.onNodeWithTag("ddcutilPathField").performTextInput("2")
 
         composeRule.onAllNodesWithContentDescription("ddcutil path is reachable").assertCountEquals(0)
+    }
+
+    @Test
+    fun testLinux_showsOnlyDdcutilField() {
+        composeRule.setContent {
+            AppTheme {
+                SettingsModal(config = AppConfig(), onSave = {}, platform = Platform.LINUX)
+            }
+        }
+
+        composeRule.onNodeWithTag("ddcutilPathField").assertIsDisplayed()
+        composeRule.onAllNodes(androidx.compose.ui.test.hasTestTag("betterdisplaycliPathField")).assertCountEquals(0)
+    }
+
+    @Test
+    fun testMac_showsOnlyBetterDisplayCliField() {
+        composeRule.setContent {
+            AppTheme {
+                SettingsModal(config = AppConfig(), onSave = {}, platform = Platform.MAC)
+            }
+        }
+
+        composeRule.onNodeWithTag("betterdisplaycliPathField").assertIsDisplayed()
+        composeRule.onAllNodes(androidx.compose.ui.test.hasTestTag("ddcutilPathField")).assertCountEquals(0)
+    }
+
+    @Test
+    fun testWindows_showsNeitherPathFieldAndShowsAMessageInstead() {
+        composeRule.setContent {
+            AppTheme {
+                SettingsModal(config = AppConfig(), onSave = {}, platform = Platform.WINDOWS)
+            }
+        }
+
+        composeRule.onAllNodes(androidx.compose.ui.test.hasTestTag("ddcutilPathField")).assertCountEquals(0)
+        composeRule.onAllNodes(androidx.compose.ui.test.hasTestTag("betterdisplaycliPathField")).assertCountEquals(0)
+        composeRule.onNodeWithText("No additional configuration is needed on this platform.").assertIsDisplayed()
     }
 }

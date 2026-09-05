@@ -75,4 +75,84 @@ class ProcessUtilsTest {
         val runner = FakeCommandRunner { "" }
         assertEquals(false, isToolReachable(runner, "ddcutil", listOf("--version")))
     }
+
+    @Test
+    fun testResolveExecutable_returnsAbsolutePathAlreadyContainingPathSeparatorUnchanged() {
+        val result = resolveExecutable("/usr/bin/true", currentPath = "/nonexistent", extraDirs = emptyList())
+        assertEquals("/usr/bin/true", result)
+    }
+
+    @Test
+    fun testResolveExecutable_returnsRelativePathContainingSeparatorUnchanged() {
+        val result = resolveExecutable("./local-tool", currentPath = "/nonexistent", extraDirs = emptyList())
+        assertEquals("./local-tool", result)
+    }
+
+    @Test
+    fun testResolveExecutable_findsABareNameOnTheCurrentPath() {
+        if (isWindows()) return
+
+        // /bin/sh always exists on macOS/Linux and /bin is a completely ordinary PATH entry.
+        val result = resolveExecutable("sh", currentPath = "/bin", extraDirs = emptyList())
+        assertEquals("/bin/sh", result)
+    }
+
+    @Test
+    fun testResolveExecutable_fallsBackToExtraDirsWhenNotOnCurrentPath() {
+        if (isWindows()) return
+
+        val result = resolveExecutable("sh", currentPath = "/nonexistent-dir", extraDirs = listOf("/definitely/not/here", "/bin"))
+        assertEquals("/bin/sh", result)
+    }
+
+    @Test
+    fun testResolveExecutable_prefersCurrentPathOverExtraDirs() {
+        if (isWindows()) return
+
+        val tempDir = kotlin.io.path.createTempDirectory("g95nc-resolve-test").toFile()
+        try {
+            val onCurrentPath = java.io.File(tempDir, "probe")
+            onCurrentPath.writeText("#!/bin/sh\n")
+            onCurrentPath.setExecutable(true)
+
+            val result = resolveExecutable("probe", currentPath = tempDir.absolutePath, extraDirs = listOf("/usr/bin"))
+
+            assertEquals(onCurrentPath.absolutePath, result)
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun testResolveExecutable_returnsBareNameUnchangedWhenNotFoundAnywhere() {
+        val result = resolveExecutable("totally_made_up_tool_xyz", currentPath = "/nonexistent", extraDirs = listOf("/also/nonexistent"))
+        assertEquals("totally_made_up_tool_xyz", result)
+    }
+
+    @Test
+    fun testResolveExecutable_ignoresANonExecutableFileWithTheSameName() {
+        val tempDir = kotlin.io.path.createTempDirectory("g95nc-resolve-test").toFile()
+        try {
+            val notExecutable = java.io.File(tempDir, "probe")
+            notExecutable.writeText("just data, not a script")
+            notExecutable.setExecutable(false)
+
+            val result = resolveExecutable("probe", currentPath = tempDir.absolutePath, extraDirs = emptyList())
+
+            assertEquals("probe", result, "a non-executable match should not be returned")
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun testRun_stillResolvesAnOrdinaryBareCommandNameCorrectly() = runBlocking {
+        if (isWindows()) return@runBlocking
+
+        // Sanity check that wiring resolveExecutable() into run() didn't break the common case:
+        // "sh" is virtually always reachable via the real PATH with no absolute path needed.
+        val output = ProcessUtils.run(listOf("sh", "-c", "echo bare-name-still-works"))
+
+        assertEquals("bare-name-still-works", output)
+    }
 }

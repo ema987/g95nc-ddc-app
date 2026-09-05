@@ -41,7 +41,7 @@ class Win32Dxva2Controller : MonitorController {
 
     override suspend fun isToolAvailable(): Boolean {
         // Since we rely on Windows DLLs, it's true if we are on Windows and dxva2 is loaded
-        return System.getProperty("os.name").lowercase().contains("win")
+        return Platform.detect() == Platform.WINDOWS
     }
 
     private fun releaseCachedHandle() {

@@ -9,14 +9,11 @@ interface MonitorController {
     suspend fun isToolAvailable(): Boolean
     
     companion object {
-        fun create(config: AppConfig): MonitorController {
-            val os = System.getProperty("os.name").lowercase()
-            return when {
-                os.contains("win") -> Win32Dxva2Controller()
-                os.contains("mac") -> BetterDisplayCliController(config.betterdisplaycliPath)
-                os.contains("nix") || os.contains("nux") || os.contains("aix") -> DdcutilController(config.ddcutilPath)
-                else -> throw UnsupportedOperationException("Unsupported OS: $os")
-            }
+        fun create(config: AppConfig): MonitorController = when (Platform.detect()) {
+            Platform.WINDOWS -> Win32Dxva2Controller()
+            Platform.MAC -> BetterDisplayCliController(config.betterdisplaycliPath)
+            Platform.LINUX -> DdcutilController(config.ddcutilPath)
+            Platform.OTHER -> throw UnsupportedOperationException("Unsupported OS: ${System.getProperty("os.name")}")
         }
     }
 }

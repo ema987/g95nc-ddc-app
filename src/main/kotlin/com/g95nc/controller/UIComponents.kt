@@ -238,7 +238,6 @@ fun Dashboard(
                         Column(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 if (renamingPresetId != preset.id) {
@@ -279,7 +278,7 @@ fun Dashboard(
                                         Icon(Icons.Default.Close, contentDescription = "Cancel rename")
                                     }
                                 } else {
-                                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                    Column(modifier = Modifier.padding(end = 8.dp)) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text(preset.name, style = MaterialTheme.typography.bodyLarge)
                                             if (preset.matchesStatus(status)) {
@@ -304,7 +303,7 @@ fun Dashboard(
                                         )
                                     }
                                     PresetThumbnail(preset, modifier = Modifier.width(56.dp))
-                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Spacer(modifier = Modifier.weight(1f))
                                     IconButton(
                                         onClick = {
                                             renamePresetText = preset.name

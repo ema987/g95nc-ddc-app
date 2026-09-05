@@ -16,6 +16,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
@@ -94,7 +95,7 @@ class DashboardUiTest {
         setDashboard(isBusy = true, config = AppConfig(presets = listOf(preset)))
 
         composeRule.onNodeWithContentDescription("Refresh").assertIsNotEnabled()
-        composeRule.onNodeWithTag("sourceSelector_PANE_1").assertIsNotEnabled()
+        composeRule.onNodeWithTag("paneCell_PANE_1").assertIsNotEnabled()
         composeRule.onNodeWithText("Save Current as Preset").assertIsNotEnabled()
         composeRule.onNodeWithText("Apply").assertIsNotEnabled()
         composeRule.onNodeWithContentDescription("Delete preset").assertIsNotEnabled()
@@ -105,8 +106,37 @@ class DashboardUiTest {
         setDashboard(isBusy = false)
 
         composeRule.onNodeWithContentDescription("Refresh").assertIsEnabled()
-        composeRule.onNodeWithTag("sourceSelector_PANE_1").assertIsEnabled()
+        composeRule.onNodeWithTag("paneCell_PANE_1").assertIsEnabled()
         composeRule.onNodeWithText("Save Current as Preset").assertIsEnabled()
+    }
+
+    @Test
+    fun testClickingAPaneCell_opensSourcePickerAndInvokesSetMainSourceWhenLayoutIsOff() {
+        var executedAction: (suspend (MonitorStatus?) -> Unit)? = null
+        setDashboard(
+            status = status(Layout.OFF, mapOf(PaneChannel.PANE_1 to SourceCode.HDMI1)),
+            onExecuteAction = { _, action -> executedAction = action }
+        )
+
+        composeRule.onNodeWithTag("paneCell_PANE_1").performClick()
+        composeRule.onNodeWithText(SourceCode.DP.description).performClick()
+
+        assertTrue(executedAction != null)
+    }
+
+    @Test
+    fun testClickingAPaneCell_callsSetSourceOnTheControllerWhenLayoutIsSplit() {
+        val controller = FakeMonitorController()
+        setDashboard(
+            status = status(Layout.PBP_2_50_50, mapOf(PaneChannel.PANE_1 to SourceCode.HDMI1, PaneChannel.PANE_2 to SourceCode.HDMI2)),
+            controller = controller,
+            onExecuteAction = { _, action -> runBlocking { action(null) } }
+        )
+
+        composeRule.onNodeWithTag("paneCell_PANE_2").performClick()
+        composeRule.onNodeWithText(SourceCode.DP.description).performClick()
+
+        assertEquals(FakeMonitorController.Call.SetSource(PaneChannel.PANE_2, SourceCode.DP), controller.calls.single())
     }
 
     @Test

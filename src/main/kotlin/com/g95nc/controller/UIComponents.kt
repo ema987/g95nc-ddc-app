@@ -132,12 +132,17 @@ fun Dashboard(
                 Spacer(modifier = Modifier.height(20.dp))
 
                 // The picture of how the screen is currently split - the anchor of the dashboard,
-                // read before any of the text controls below it.
-                LayoutDiagram(
-                    layout = status.layout,
-                    paneSources = status.paneSources,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                // read before any of the text controls below it. Kept compact (not full-width) and
+                // clickable per pane, so it doubles as the source picker instead of a separate list.
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    LayoutDiagram(
+                        status = status,
+                        controller = controller,
+                        isBusy = isBusy,
+                        onExecuteAction = { action -> onExecuteAction(safeMode, action) },
+                        modifier = Modifier.fillMaxWidth(0.55f)
+                    )
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     status.layout?.description ?: "Unknown (0x${status.layoutStatusRaw.toString(16)})",
@@ -173,16 +178,6 @@ fun Dashboard(
                                 }
                             )
                         }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-                Text("Source routing", style = MaterialTheme.typography.labelLarge)
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    val slots = paneSlotsFor(status.layout)
-                    slots.forEach { (channel, label) ->
-                        PaneSourceSelector(label, channel, controller, status, isBusy) { action -> onExecuteAction(safeMode, action) }
                     }
                 }
 
@@ -376,59 +371,6 @@ fun Dashboard(
                 }
             }
         )
-    }
-}
-
-@Composable
-fun PaneSourceSelector(
-    label: String,
-    channel: PaneChannel,
-    controller: MonitorController,
-    status: MonitorStatus,
-    isBusy: Boolean,
-    onExecuteAction: (suspend (MonitorStatus?) -> Unit) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val currentSource = status.paneSources[channel]
-
-    Column {
-        Text(label, style = MaterialTheme.typography.labelSmall)
-        Box {
-            OutlinedButton(
-                onClick = { expanded = true },
-                enabled = !isBusy,
-                modifier = Modifier.testTag("sourceSelector_${channel.name}")
-            ) {
-                currentSource?.let {
-                    Icon(sourceIcon(it), contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                }
-                Text(currentSource?.description ?: "Select Source")
-            }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                SourceCode.entries.filter { it != currentSource }.forEach { src ->
-                    DropdownMenuItem(
-                        text = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(sourceIcon(src), contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(src.description)
-                            }
-                        },
-                        onClick = {
-                            expanded = false
-                            onExecuteAction { _ ->
-                                if (status.layout == Layout.OFF) {
-                                    controller.setMainSource(src)
-                                } else {
-                                    controller.setSource(channel, src)
-                                }
-                            }
-                        }
-                    )
-                }
-            }
-        }
     }
 }
 

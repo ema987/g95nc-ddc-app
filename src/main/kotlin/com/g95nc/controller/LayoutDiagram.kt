@@ -2,6 +2,7 @@ package com.g95nc.controller
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,14 +20,21 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cable
 import androidx.compose.material.icons.filled.QuestionMark
 import androidx.compose.material.icons.filled.SettingsInputHdmi
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 
 /** Icon standing in for a source's physical port - a genuine visual distinction, not decoration. */
@@ -49,13 +57,20 @@ private val layoutPaneWeights: Map<Layout, List<Float>> = mapOf(
     Layout.PBP_3_25_25_50 to listOf(1f, 1f, 2f)
 )
 
-/** The live picture of how the screen is currently split - the anchor of the whole dashboard. */
+/** The live picture of how the screen is currently split - the anchor of the whole dashboard.
+ * Each pane is clickable to change its routed source directly, instead of a separate list of
+ * source pickers below. */
 @Composable
 fun LayoutDiagram(
-    layout: Layout?,
-    paneSources: Map<PaneChannel, SourceCode>,
+    status: MonitorStatus,
+    controller: MonitorController,
+    isBusy: Boolean,
+    onExecuteAction: (suspend (MonitorStatus?) -> Unit) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val layout = status.layout
+    val paneSources = status.paneSources
+
     Box(
         modifier = modifier
             .aspectRatio(16f / 9f)
@@ -66,15 +81,30 @@ fun LayoutDiagram(
     ) {
         val slots = paneSlotsFor(layout)
 
+        fun setSource(channel: PaneChannel, src: SourceCode) {
+            onExecuteAction { _ ->
+                if (layout == Layout.OFF) controller.setMainSource(src) else controller.setSource(channel, src)
+            }
+        }
+
         when {
             layout == null || layout == Layout.OFF ->
-                PaneCell(slots[0].second, paneSources[PaneChannel.PANE_1], modifier = Modifier.fillMaxSize())
+                PaneCell(
+                    slots[0].second, PaneChannel.PANE_1, paneSources[PaneChannel.PANE_1], isBusy,
+                    onSelect = { setSource(PaneChannel.PANE_1, it) }, modifier = Modifier.fillMaxSize()
+                )
 
             layout == Layout.PIP -> {
-                PaneCell(slots[0].second, paneSources[PaneChannel.PANE_1], modifier = Modifier.fillMaxSize())
+                PaneCell(
+                    slots[0].second, PaneChannel.PANE_1, paneSources[PaneChannel.PANE_1], isBusy,
+                    onSelect = { setSource(PaneChannel.PANE_1, it) }, modifier = Modifier.fillMaxSize()
+                )
                 PaneCell(
                     slots.getOrNull(1)?.second ?: "Sub",
+                    PaneChannel.PANE_2,
                     paneSources[PaneChannel.PANE_2],
+                    isBusy,
+                    onSelect = { setSource(PaneChannel.PANE_2, it) },
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .fillMaxSize(0.36f)
@@ -86,18 +116,27 @@ fun LayoutDiagram(
 
             layout.name.startsWith("PBP_3") -> {
                 val weights = layoutPaneWeights[layout] ?: listOf(1f, 1f, 1f)
+                val channels = listOf(PaneChannel.PANE_1, PaneChannel.PANE_2, PaneChannel.PANE_3)
                 Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    PaneCell(slots[0].second, paneSources[PaneChannel.PANE_1], Modifier.weight(weights[0]).fillMaxHeight())
-                    PaneCell(slots[1].second, paneSources[PaneChannel.PANE_2], Modifier.weight(weights[1]).fillMaxHeight())
-                    PaneCell(slots[2].second, paneSources[PaneChannel.PANE_3], Modifier.weight(weights[2]).fillMaxHeight())
+                    channels.forEachIndexed { i, channel ->
+                        PaneCell(
+                            slots[i].second, channel, paneSources[channel], isBusy,
+                            onSelect = { setSource(channel, it) }, modifier = Modifier.weight(weights[i]).fillMaxHeight()
+                        )
+                    }
                 }
             }
 
             else -> {
                 val weights = layoutPaneWeights[layout] ?: listOf(1f, 1f)
+                val channels = listOf(PaneChannel.PANE_1, PaneChannel.PANE_2)
                 Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    PaneCell(slots[0].second, paneSources[PaneChannel.PANE_1], Modifier.weight(weights[0]).fillMaxHeight())
-                    PaneCell(slots[1].second, paneSources[PaneChannel.PANE_2], Modifier.weight(weights[1]).fillMaxHeight())
+                    channels.forEachIndexed { i, channel ->
+                        PaneCell(
+                            slots[i].second, channel, paneSources[channel], isBusy,
+                            onSelect = { setSource(channel, it) }, modifier = Modifier.weight(weights[i]).fillMaxHeight()
+                        )
+                    }
                 }
             }
         }
@@ -105,7 +144,17 @@ fun LayoutDiagram(
 }
 
 @Composable
-private fun PaneCell(label: String, source: SourceCode?, modifier: Modifier, emphasized: Boolean = false) {
+private fun PaneCell(
+    label: String,
+    channel: PaneChannel,
+    source: SourceCode?,
+    isBusy: Boolean,
+    onSelect: (SourceCode) -> Unit,
+    modifier: Modifier,
+    emphasized: Boolean = false
+) {
+    var expanded by remember { mutableStateOf(false) }
+
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
@@ -118,7 +167,9 @@ private fun PaneCell(label: String, source: SourceCode?, modifier: Modifier, emp
                 color = if (source != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
                         else MaterialTheme.colorScheme.outlineVariant,
                 shape = RoundedCornerShape(8.dp)
-            ),
+            )
+            .clickable(enabled = !isBusy) { expanded = true }
+            .testTag("paneCell_${channel.name}"),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -140,6 +191,24 @@ private fun PaneCell(label: String, source: SourceCode?, modifier: Modifier, emp
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            SourceCode.entries.filter { it != source }.forEach { src ->
+                DropdownMenuItem(
+                    text = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(sourceIcon(src), contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(src.description)
+                        }
+                    },
+                    onClick = {
+                        expanded = false
+                        onSelect(src)
+                    }
+                )
+            }
         }
     }
 }

@@ -260,8 +260,6 @@ fun Dashboard(
                                     }
                                     Spacer(modifier = Modifier.width(4.dp))
                                 }
-                                PresetThumbnail(preset, modifier = Modifier.width(56.dp))
-                                Spacer(modifier = Modifier.width(10.dp))
                                 if (renamingPresetId == preset.id) {
                                     OutlinedTextField(
                                         value = renamePresetText,
@@ -305,6 +303,8 @@ fun Dashboard(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
+                                    PresetThumbnail(preset, modifier = Modifier.width(56.dp))
+                                    Spacer(modifier = Modifier.width(10.dp))
                                     IconButton(
                                         onClick = {
                                             renamePresetText = preset.name

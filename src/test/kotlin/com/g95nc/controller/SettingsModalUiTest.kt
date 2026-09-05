@@ -26,7 +26,7 @@ class SettingsModalUiTest {
     fun testSaveConfiguration_passesEditedPathAndToggledCheckbox() {
         var saved: AppConfig? = null
         composeRule.setContent {
-            AppTheme {
+            AppTheme(themeMode = ThemeMode.DARK) {
                 SettingsModal(
                     config = AppConfig(ddcutilPath = "ddcutil", betterdisplaycliPath = "betterdisplaycli", enableSafetyCountdown = true),
                     onSave = { saved = it },
@@ -51,7 +51,7 @@ class SettingsModalUiTest {
     fun testTestButton_showsSuccessIconWhenToolIsReachable() {
         val runner = FakeCommandRunner { "ddcutil 2.1.0" }
         composeRule.setContent {
-            AppTheme {
+            AppTheme(themeMode = ThemeMode.DARK) {
                 SettingsModal(config = AppConfig(ddcutilPath = "ddcutil"), onSave = {}, commandRunner = runner, platform = Platform.LINUX)
             }
         }
@@ -66,7 +66,7 @@ class SettingsModalUiTest {
     fun testTestButton_showsErrorIconWhenToolIsNotReachable() {
         val runner = FakeCommandRunner { throw RuntimeException("not found") }
         composeRule.setContent {
-            AppTheme {
+            AppTheme(themeMode = ThemeMode.DARK) {
                 SettingsModal(config = AppConfig(ddcutilPath = "/bad/path"), onSave = {}, commandRunner = runner, platform = Platform.LINUX)
             }
         }
@@ -81,7 +81,7 @@ class SettingsModalUiTest {
     fun testEditingPath_clearsThePreviousTestResult() {
         val runner = FakeCommandRunner { "ddcutil 2.1.0" }
         composeRule.setContent {
-            AppTheme {
+            AppTheme(themeMode = ThemeMode.DARK) {
                 SettingsModal(config = AppConfig(ddcutilPath = "ddcutil"), onSave = {}, commandRunner = runner, platform = Platform.LINUX)
             }
         }
@@ -98,7 +98,7 @@ class SettingsModalUiTest {
     @Test
     fun testLinux_showsOnlyDdcutilField() {
         composeRule.setContent {
-            AppTheme {
+            AppTheme(themeMode = ThemeMode.DARK) {
                 SettingsModal(config = AppConfig(), onSave = {}, platform = Platform.LINUX)
             }
         }
@@ -110,7 +110,7 @@ class SettingsModalUiTest {
     @Test
     fun testMac_showsOnlyBetterDisplayCliField() {
         composeRule.setContent {
-            AppTheme {
+            AppTheme(themeMode = ThemeMode.DARK) {
                 SettingsModal(config = AppConfig(), onSave = {}, platform = Platform.MAC)
             }
         }
@@ -122,7 +122,7 @@ class SettingsModalUiTest {
     @Test
     fun testWindows_showsNeitherPathFieldAndShowsAMessageInstead() {
         composeRule.setContent {
-            AppTheme {
+            AppTheme(themeMode = ThemeMode.DARK) {
                 SettingsModal(config = AppConfig(), onSave = {}, platform = Platform.WINDOWS)
             }
         }
@@ -130,5 +130,33 @@ class SettingsModalUiTest {
         composeRule.onAllNodes(androidx.compose.ui.test.hasTestTag("ddcutilPathField")).assertCountEquals(0)
         composeRule.onAllNodes(androidx.compose.ui.test.hasTestTag("betterdisplaycliPathField")).assertCountEquals(0)
         composeRule.onNodeWithText("No additional configuration is needed on this platform.").assertIsDisplayed()
+    }
+
+    @Test
+    fun testThemeModeDefaultsToTheSavedConfigValue() {
+        composeRule.setContent {
+            AppTheme(themeMode = ThemeMode.DARK) {
+                SettingsModal(config = AppConfig(themeMode = ThemeMode.LIGHT), onSave = {}, platform = Platform.LINUX)
+            }
+        }
+
+        composeRule.onNodeWithTag("themeModeButton").assertIsDisplayed()
+        composeRule.onNodeWithText("Light").assertIsDisplayed()
+    }
+
+    @Test
+    fun testSelectingATheme_andSaving_passesItThrough() {
+        var saved: AppConfig? = null
+        composeRule.setContent {
+            AppTheme(themeMode = ThemeMode.DARK) {
+                SettingsModal(config = AppConfig(themeMode = ThemeMode.SYSTEM), onSave = { saved = it }, platform = Platform.LINUX)
+            }
+        }
+
+        composeRule.onNodeWithTag("themeModeButton").performClick()
+        composeRule.onNodeWithText("Dark").performClick()
+        composeRule.onNodeWithText("Save Configuration").performClick()
+
+        assertEquals(ThemeMode.DARK, saved?.themeMode)
     }
 }

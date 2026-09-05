@@ -484,6 +484,8 @@ fun SettingsModal(
     var ddcPath by remember { mutableStateOf(config.ddcutilPath) }
     var bdPath by remember { mutableStateOf(config.betterdisplaycliPath) }
     var enableCountdown by remember { mutableStateOf(config.enableSafetyCountdown) }
+    var themeMode by remember { mutableStateOf(config.themeMode) }
+    var expandedTheme by remember { mutableStateOf(false) }
     var ddcTestResult by remember { mutableStateOf<Boolean?>(null) }
     var bdTestResult by remember { mutableStateOf<Boolean?>(null) }
     var isTestingDdc by remember { mutableStateOf(false) }
@@ -567,6 +569,26 @@ fun SettingsModal(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
+        Text("Appearance", style = MaterialTheme.typography.labelLarge)
+        Spacer(modifier = Modifier.height(4.dp))
+        Box {
+            OutlinedButton(onClick = { expandedTheme = true }, modifier = Modifier.testTag("themeModeButton")) {
+                Text(themeMode.label)
+            }
+            DropdownMenu(expanded = expandedTheme, onDismissRequest = { expandedTheme = false }) {
+                ThemeMode.entries.forEach { mode ->
+                    DropdownMenuItem(
+                        text = { Text(mode.label) },
+                        onClick = {
+                            themeMode = mode
+                            expandedTheme = false
+                        }
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(
                 checked = enableCountdown,
@@ -583,7 +605,8 @@ fun SettingsModal(
                 onSave(config.copy(
                     ddcutilPath = ddcPath,
                     betterdisplaycliPath = bdPath,
-                    enableSafetyCountdown = enableCountdown
+                    enableSafetyCountdown = enableCountdown,
+                    themeMode = themeMode
                 ))
             }) {
                 Text("Save Configuration")

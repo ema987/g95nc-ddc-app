@@ -18,7 +18,7 @@ class OnboardingWizardUiTest {
         var checkedAgain = false
         var settingsOpened = false
         composeRule.setContent {
-            AppTheme {
+            AppTheme(themeMode = ThemeMode.DARK) {
                 OnboardingWizard(onOpenSettings = { settingsOpened = true }, onCheckAgain = { checkedAgain = true })
             }
         }
@@ -33,7 +33,7 @@ class OnboardingWizardUiTest {
     @Test
     fun testMac_mentionsBetterDisplayCli() {
         composeRule.setContent {
-            AppTheme { OnboardingWizard(onOpenSettings = {}, onCheckAgain = {}, platform = Platform.MAC) }
+            AppTheme(themeMode = ThemeMode.DARK) { OnboardingWizard(onOpenSettings = {}, onCheckAgain = {}, platform = Platform.MAC) }
         }
         composeRule.onNodeWithText("This app requires 'betterdisplaycli' on macOS.").assertIsDisplayed()
     }
@@ -41,7 +41,7 @@ class OnboardingWizardUiTest {
     @Test
     fun testLinux_mentionsDdcutil() {
         composeRule.setContent {
-            AppTheme { OnboardingWizard(onOpenSettings = {}, onCheckAgain = {}, platform = Platform.LINUX) }
+            AppTheme(themeMode = ThemeMode.DARK) { OnboardingWizard(onOpenSettings = {}, onCheckAgain = {}, platform = Platform.LINUX) }
         }
         composeRule.onNodeWithText("This app requires 'ddcutil' on Linux.").assertIsDisplayed()
     }
@@ -49,7 +49,7 @@ class OnboardingWizardUiTest {
     @Test
     fun testWindows_mentionsNativeToolsFailure() {
         composeRule.setContent {
-            AppTheme { OnboardingWizard(onOpenSettings = {}, onCheckAgain = {}, platform = Platform.WINDOWS) }
+            AppTheme(themeMode = ThemeMode.DARK) { OnboardingWizard(onOpenSettings = {}, onCheckAgain = {}, platform = Platform.WINDOWS) }
         }
         composeRule.onNodeWithText("Windows native tools failed to load.").assertIsDisplayed()
     }

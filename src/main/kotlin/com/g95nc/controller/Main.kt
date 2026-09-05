@@ -41,7 +41,7 @@ fun main() {
             state = WindowState(width = 420.dp, height = 220.dp),
             resizable = false
         ) {
-            AppTheme {
+            AppTheme(themeMode = ConfigManager.config.themeMode) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     Column(
                         modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -88,7 +88,7 @@ private fun registerAboutHandler(onAboutRequested: () -> Unit) {
 }
 
 @Composable
-private fun AboutDialog(onDismiss: () -> Unit) {
+private fun AboutDialog(onDismiss: () -> Unit, themeMode: ThemeMode) {
     Window(
         onCloseRequest = onDismiss,
         title = "About ${AppInfo.NAME}",
@@ -96,7 +96,7 @@ private fun AboutDialog(onDismiss: () -> Unit) {
         state = rememberWindowState(width = 360.dp, height = 280.dp),
         resizable = false
     ) {
-        AppTheme {
+        AppTheme(themeMode = themeMode) {
             Surface(modifier = Modifier.fillMaxSize()) {
                 Column(
                     modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -242,7 +242,7 @@ private fun ApplicationScope.runMainApplication() {
             icon = AppIconPainter,
             state = rememberWindowState(width = 680.dp, height = 920.dp)
         ) {
-            AppTheme {
+            AppTheme(themeMode = config.themeMode) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     if (!isToolAvailable) {
                         OnboardingWizard(
@@ -327,20 +327,22 @@ private fun ApplicationScope.runMainApplication() {
             icon = AppIconPainter,
             state = rememberWindowState(width = 500.dp, height = 400.dp)
         ) {
-            AppTheme {
-                SettingsModal(
-                    config = config,
-                    onSave = { newConfig ->
-                        ConfigManager.updateConfig(newConfig)
-                        controller = MonitorController.create(newConfig)
-                        isSettingsOpen = false
-                    }
-                )
+            AppTheme(themeMode = config.themeMode) {
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    SettingsModal(
+                        config = config,
+                        onSave = { newConfig ->
+                            ConfigManager.updateConfig(newConfig)
+                            controller = MonitorController.create(newConfig)
+                            isSettingsOpen = false
+                        }
+                    )
+                }
             }
         }
     }
 
     if (showAboutDialog) {
-        AboutDialog(onDismiss = { showAboutDialog = false })
+        AboutDialog(onDismiss = { showAboutDialog = false }, themeMode = config.themeMode)
     }
 }

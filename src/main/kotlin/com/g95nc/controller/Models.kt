@@ -76,7 +76,8 @@ data class AppConfig(
     val presets: List<Preset> = emptyList(),
     val ddcutilPath: String = "ddcutil",
     val betterdisplaycliPath: String = "betterdisplaycli",
-    val enableSafetyCountdown: Boolean = true
+    val enableSafetyCountdown: Boolean = true,
+    val themeMode: ThemeMode = ThemeMode.SYSTEM
 )
 
 fun List<Preset>.withoutPreset(id: String): List<Preset> = filterNot { it.id == id }

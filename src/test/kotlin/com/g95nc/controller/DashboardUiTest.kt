@@ -51,7 +51,7 @@ class DashboardUiTest {
         onConfirmChange: () -> Unit = {}
     ) {
         composeRule.setContent {
-            AppTheme {
+            AppTheme(themeMode = ThemeMode.DARK) {
                 Dashboard(
                     status = status,
                     controller = controller,

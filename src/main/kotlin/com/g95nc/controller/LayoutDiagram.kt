@@ -274,3 +274,74 @@ fun SourceChip(label: String, source: SourceCode?, modifier: Modifier = Modifier
         Text("$label: ${source?.description ?: "—"}", style = MaterialTheme.typography.labelSmall)
     }
 }
+
+/** Small static rendering of a preset's pane split, shown next to its name in the presets list -
+ * the same visual grammar as the live [LayoutDiagram], just shrunk down and non-interactive. */
+@Composable
+fun PresetThumbnail(preset: Preset, modifier: Modifier = Modifier) {
+    val layout = preset.layout
+    val sources = preset.paneSources
+
+    Box(
+        modifier = modifier
+            .aspectRatio(16f / 9f)
+            .clip(RoundedCornerShape(6.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(6.dp))
+            .padding(3.dp)
+    ) {
+        when {
+            layout == Layout.PIP -> {
+                ThumbnailCell(sources[PaneChannel.PANE_1], Modifier.fillMaxSize())
+                ThumbnailCell(
+                    sources[PaneChannel.PANE_2],
+                    Modifier.align(Alignment.BottomEnd).fillMaxSize(0.36f).aspectRatio(16f / 9f).padding(2.dp),
+                    emphasized = true
+                )
+            }
+
+            layout.name.startsWith("PBP_3") -> {
+                val weights = layoutPaneWeights[layout] ?: listOf(1f, 1f, 1f)
+                val channels = listOf(PaneChannel.PANE_1, PaneChannel.PANE_2, PaneChannel.PANE_3)
+                Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    channels.forEachIndexed { i, channel ->
+                        ThumbnailCell(sources[channel], Modifier.weight(weights[i]).fillMaxHeight())
+                    }
+                }
+            }
+
+            layout == Layout.OFF ->
+                ThumbnailCell(sources[PaneChannel.PANE_1], Modifier.fillMaxSize())
+
+            else -> {
+                val weights = layoutPaneWeights[layout] ?: listOf(1f, 1f)
+                val channels = listOf(PaneChannel.PANE_1, PaneChannel.PANE_2)
+                Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    channels.forEachIndexed { i, channel ->
+                        ThumbnailCell(sources[channel], Modifier.weight(weights[i]).fillMaxHeight())
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThumbnailCell(source: SourceCode?, modifier: Modifier, emphasized: Boolean = false) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(3.dp))
+            .background(
+                if (emphasized) MaterialTheme.colorScheme.surface
+                else MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = source?.let { sourceIcon(it) } ?: Icons.Default.QuestionMark,
+            contentDescription = null,
+            tint = if (source != null) AppColors.signalActive else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(10.dp)
+        )
+    }
+}

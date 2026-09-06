@@ -16,15 +16,19 @@ object MonitorActions {
     const val LAYOUT_SETTLE_DELAY_MS = 4000L
     const val SOURCE_SETTLE_DELAY_MS = 4000L
 
+    /** Returns whether every write actually attempted (targets already matching are skipped and
+     * don't count against this) reported success - the caller decides how to surface a failure. */
     suspend fun applyTarget(
         controller: MonitorController,
         currentStatus: MonitorStatus?,
         targetLayout: Layout?,
         targetPaneSources: Map<PaneChannel, SourceCode>,
         targetAudioSource: Int? = null
-    ) {
+    ): Boolean {
+        var allSucceeded = true
+
         if (targetLayout != null && targetLayout != currentStatus?.layout) {
-            controller.setLayout(targetLayout)
+            if (!controller.setLayout(targetLayout)) allSucceeded = false
             delay(LAYOUT_SETTLE_DELAY_MS)
         }
 
@@ -32,11 +36,12 @@ object MonitorActions {
             .filter { (channel, source) -> currentStatus?.paneSources?.get(channel) != source }
 
         pendingSourceWrites.forEachIndexed { index, (channel, source) ->
-            if (targetLayout == Layout.OFF && channel == PaneChannel.PANE_1) {
+            val wroteOk = if (targetLayout == Layout.OFF && channel == PaneChannel.PANE_1) {
                 controller.setMainSource(source)
             } else {
                 controller.setSource(channel, source)
             }
+            if (!wroteOk) allSucceeded = false
             // No settle delay after the final write: getStatus() already polls/waits for the
             // DDC bus to stabilize before returning, so a blind sleep here is pure dead time.
             if (index != pendingSourceWrites.lastIndex) {
@@ -45,7 +50,9 @@ object MonitorActions {
         }
 
         if (targetAudioSource != null && currentStatus?.audioSource != targetAudioSource) {
-            controller.setAudioSource(targetAudioSource)
+            if (!controller.setAudioSource(targetAudioSource)) allSucceeded = false
         }
+
+        return allSucceeded
     }
 }

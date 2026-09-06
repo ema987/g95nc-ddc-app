@@ -203,6 +203,9 @@ private fun ApplicationScope.runMainApplication() {
     // True while a monitor action is in flight. The dashboard stays showing the last known
     // status during this (instead of blanking to a full-page spinner) and disables its controls.
     var isBusy by remember { mutableStateOf(false) }
+    // A write that reported failure even though a subsequent status read still succeeded (so
+    // recoveryExhausted never fires) would otherwise be completely silent - see Dashboard's banner.
+    var actionFailureMessage by remember { mutableStateOf<String?>(null) }
 
     val scope = rememberCoroutineScope()
     val trayState = rememberTrayState()
@@ -220,6 +223,15 @@ private fun ApplicationScope.runMainApplication() {
         isToolAvailable = controller.isToolAvailable()
         if (!isToolAvailable) {
             isSettingsOpen = true // Force onboarding
+        }
+    }
+
+    // Auto-dismiss the transient action-failure banner - it's meant to catch the user's attention
+    // right after a failed write, not linger indefinitely.
+    LaunchedEffect(actionFailureMessage) {
+        if (actionFailureMessage != null) {
+            delay(6000)
+            actionFailureMessage = null
         }
     }
 
@@ -243,12 +255,15 @@ private fun ApplicationScope.runMainApplication() {
                     // reverting a layout/source change must not also stomp on an audio switch the
                     // user made in the meantime, which previously-recorded previousStatus knows
                     // nothing about.
-                    MonitorActions.applyTarget(
+                    val succeeded = MonitorActions.applyTarget(
                         controller = controller,
                         currentStatus = currentStatus,
                         targetLayout = change.previousStatus.layout,
                         targetPaneSources = change.previousStatus.paneSources
                     )
+                    if (!succeeded) {
+                        actionFailureMessage = LastControllerError.message ?: "reverting to the previous layout may not have applied."
+                    }
 
                     status = controller.getStatus()
                 }
@@ -391,12 +406,15 @@ private fun ApplicationScope.runMainApplication() {
                                         runBusy {
                                             // See the auto-revert effect above - audio is
                                             // intentionally excluded from what gets reverted here.
-                                            MonitorActions.applyTarget(
+                                            val succeeded = MonitorActions.applyTarget(
                                                 controller = controller,
                                                 currentStatus = currentStatus,
                                                 targetLayout = change.previousStatus.layout,
                                                 targetPaneSources = change.previousStatus.paneSources
                                             )
+                                            if (!succeeded) {
+                                                actionFailureMessage = LastControllerError.message ?: "reverting to the previous layout may not have applied."
+                                            }
 
                                             status = controller.getStatus()
                                         }
@@ -408,15 +426,21 @@ private fun ApplicationScope.runMainApplication() {
                                     scope.launch {
                                         val currentStatus = status
                                         runBusy {
-                                            action(currentStatus)
+                                            val succeeded = action(currentStatus)
                                             status = controller.getStatus()
-                                            if (currentStatus != null && safeMode) {
-                                                pendingChange = PendingChange(currentStatus, 15)
+                                            if (succeeded) {
+                                                if (currentStatus != null && safeMode) {
+                                                    pendingChange = PendingChange(currentStatus, 15)
+                                                }
+                                            } else {
+                                                actionFailureMessage = LastControllerError.message ?: "the change may not have applied."
                                             }
                                         }
                                     }
                                 }
                             },
+                            actionFailureMessage = actionFailureMessage,
+                            onDismissActionFailure = { actionFailureMessage = null },
                             onRefresh = {
                                 if (!isBusy) {
                                     scope.launch {

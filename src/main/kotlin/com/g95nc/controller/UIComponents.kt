@@ -118,8 +118,10 @@ fun Dashboard(
     onSettingsClick: () -> Unit,
     onConfirmChange: () -> Unit,
     onRevertChange: () -> Unit,
-    onExecuteAction: (Boolean, suspend (MonitorStatus?) -> Unit) -> Unit,
-    onRefresh: () -> Unit
+    onExecuteAction: (Boolean, suspend (MonitorStatus?) -> Boolean) -> Unit,
+    onRefresh: () -> Unit,
+    actionFailureMessage: String? = null,
+    onDismissActionFailure: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
     var isSavingPreset by remember { mutableStateOf(false) }
@@ -187,6 +189,38 @@ fun Dashboard(
                         Button(onClick = onConfirmChange) {
                             Text("Confirm")
                         }
+                    }
+                }
+            }
+        }
+
+        // A transient notice for a write that reported failure even though a subsequent status
+        // read still succeeded (so the "recovery exhausted" screen below never shows) - without
+        // this, that kind of failure was completely silent. Auto-dismisses itself (see Main.kt),
+        // but can also be closed manually.
+        if (actionFailureMessage != null) {
+            Surface(
+                color = MaterialTheme.colorScheme.errorContainer,
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp).testTag("actionFailureBanner")
+            ) {
+                Row(
+                    modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 8.dp).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "That last action may not have applied: $actionFailureMessage",
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = onDismissActionFailure) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Dismiss",
+                            tint = MaterialTheme.colorScheme.onErrorContainer
+                        )
                     }
                 }
             }

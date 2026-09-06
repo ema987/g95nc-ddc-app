@@ -47,10 +47,12 @@ class DashboardUiTest {
         isBusy: Boolean = false,
         config: AppConfig = AppConfig(),
         onConfigChange: (AppConfig) -> Unit = {},
-        onExecuteAction: (Boolean, suspend (MonitorStatus?) -> Unit) -> Unit = { _, _ -> },
+        onExecuteAction: (Boolean, suspend (MonitorStatus?) -> Boolean) -> Unit = { _, _ -> },
         onRefresh: () -> Unit = {},
         onRevertChange: () -> Unit = {},
-        onConfirmChange: () -> Unit = {}
+        onConfirmChange: () -> Unit = {},
+        actionFailureMessage: String? = null,
+        onDismissActionFailure: () -> Unit = {}
     ) {
         composeRule.setContent {
             AppTheme(themeMode = ThemeMode.DARK) {
@@ -66,7 +68,9 @@ class DashboardUiTest {
                     onConfirmChange = onConfirmChange,
                     onRevertChange = onRevertChange,
                     onExecuteAction = onExecuteAction,
-                    onRefresh = onRefresh
+                    onRefresh = onRefresh,
+                    actionFailureMessage = actionFailureMessage,
+                    onDismissActionFailure = onDismissActionFailure
                 )
             }
         }
@@ -125,7 +129,7 @@ class DashboardUiTest {
 
     @Test
     fun testClickingAPaneCell_opensSourcePickerAndInvokesSetMainSourceWhenLayoutIsOff() {
-        var executedAction: (suspend (MonitorStatus?) -> Unit)? = null
+        var executedAction: (suspend (MonitorStatus?) -> Boolean)? = null
         setDashboard(
             status = status(Layout.OFF, mapOf(PaneChannel.PANE_1 to SourceCode.HDMI1)),
             onExecuteAction = { _, action -> executedAction = action }
@@ -485,5 +489,24 @@ class DashboardUiTest {
 
         composeRule.onNodeWithText("Confirm").performClick()
         assertTrue(confirmed)
+    }
+
+    @Test
+    fun testActionFailureBanner_showsMessageAndDismissButtonFiresCallback() {
+        var dismissed = false
+        setDashboard(actionFailureMessage = "command not found", onDismissActionFailure = { dismissed = true })
+
+        composeRule.onNodeWithTag("actionFailureBanner").assertIsDisplayed()
+        composeRule.onNodeWithText("That last action may not have applied: command not found").assertIsDisplayed()
+
+        composeRule.onNodeWithContentDescription("Dismiss").performClick()
+        assertTrue(dismissed)
+    }
+
+    @Test
+    fun testActionFailureBanner_isAbsentWhenThereIsNoFailure() {
+        setDashboard(actionFailureMessage = null)
+
+        composeRule.onAllNodes(hasTestTag("actionFailureBanner")).assertCountEquals(0)
     }
 }

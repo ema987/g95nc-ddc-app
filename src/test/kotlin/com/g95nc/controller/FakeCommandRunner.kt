@@ -15,7 +15,8 @@ class FakeCommandRunner(private val handler: (List<String>) -> String) : Command
 /** Test double for [MonitorController]: records every call instead of touching real hardware. */
 class FakeMonitorController(
     private val statusToReturn: MonitorStatus? = null,
-    private val rawVcpValues: Map<String, Int?> = emptyMap()
+    private val rawVcpValues: Map<String, Int?> = emptyMap(),
+    private val shouldSucceed: Boolean = true
 ) : MonitorController {
     sealed class Call {
         data class SetLayout(val layout: Layout) : Call()
@@ -30,22 +31,22 @@ class FakeMonitorController(
 
     override suspend fun setLayout(layout: Layout): Boolean {
         calls.add(Call.SetLayout(layout))
-        return true
+        return shouldSucceed
     }
 
     override suspend fun setMainSource(sourceCode: SourceCode): Boolean {
         calls.add(Call.SetMainSource(sourceCode))
-        return true
+        return shouldSucceed
     }
 
     override suspend fun setSource(channel: PaneChannel, sourceCode: SourceCode): Boolean {
         calls.add(Call.SetSource(channel, sourceCode))
-        return true
+        return shouldSucceed
     }
 
     override suspend fun setAudioSource(audioCode: Int): Boolean {
         calls.add(Call.SetAudioSource(audioCode))
-        return true
+        return shouldSucceed
     }
 
     override suspend fun isToolAvailable(): Boolean = true

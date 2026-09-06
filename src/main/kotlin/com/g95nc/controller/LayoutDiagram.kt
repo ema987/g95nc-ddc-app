@@ -67,8 +67,8 @@ fun LayoutDiagram(
     status: MonitorStatus,
     controller: MonitorController,
     isBusy: Boolean,
-    onExecuteAction: (suspend (MonitorStatus?) -> Unit) -> Unit,
-    onExecuteAudioAction: (suspend (MonitorStatus?) -> Unit) -> Unit = onExecuteAction,
+    onExecuteAction: (suspend (MonitorStatus?) -> Boolean) -> Unit,
+    onExecuteAudioAction: (suspend (MonitorStatus?) -> Boolean) -> Unit = onExecuteAction,
     modifier: Modifier = Modifier
 ) {
     val layout = status.layout

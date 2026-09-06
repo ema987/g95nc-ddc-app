@@ -4,6 +4,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MonitorActionsTest {
@@ -124,5 +126,45 @@ class MonitorActionsTest {
         )
 
         assertEquals(emptyList<FakeMonitorController.Call>(), fake.calls)
+    }
+
+    @Test
+    fun testApplyTarget_returnsTrueWhenEveryAttemptedWriteSucceeds() = runTest {
+        val fake = FakeMonitorController()
+        val current = status(Layout.OFF, mapOf(PaneChannel.PANE_1 to SourceCode.HDMI1))
+
+        val result = MonitorActions.applyTarget(
+            controller = fake,
+            currentStatus = current,
+            targetLayout = Layout.PBP_2_50_50,
+            targetPaneSources = mapOf(PaneChannel.PANE_1 to SourceCode.HDMI2, PaneChannel.PANE_2 to SourceCode.DP)
+        )
+
+        assertTrue(result)
+    }
+
+    @Test
+    fun testApplyTarget_returnsFalseWhenAWriteFails_butStillAttemptsTheRest() = runTest {
+        val fake = FakeMonitorController(shouldSucceed = false)
+        val current = status(Layout.OFF, mapOf(PaneChannel.PANE_1 to SourceCode.HDMI1))
+
+        val result = MonitorActions.applyTarget(
+            controller = fake,
+            currentStatus = current,
+            targetLayout = Layout.PBP_2_50_50,
+            targetPaneSources = mapOf(PaneChannel.PANE_1 to SourceCode.HDMI2, PaneChannel.PANE_2 to SourceCode.DP),
+            targetAudioSource = 1
+        )
+
+        assertFalse(result)
+        assertEquals(
+            listOf(
+                FakeMonitorController.Call.SetLayout(Layout.PBP_2_50_50),
+                FakeMonitorController.Call.SetSource(PaneChannel.PANE_1, SourceCode.HDMI2),
+                FakeMonitorController.Call.SetSource(PaneChannel.PANE_2, SourceCode.DP),
+                FakeMonitorController.Call.SetAudioSource(1)
+            ),
+            fake.calls
+        )
     }
 }

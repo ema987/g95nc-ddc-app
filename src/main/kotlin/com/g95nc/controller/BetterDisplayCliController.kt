@@ -39,7 +39,7 @@ class BetterDisplayCliController(
             }
             null
         } catch (e: Exception) {
-            e.printStackTrace()
+            LastControllerError.record(e)
             null
         }
     }
@@ -58,7 +58,7 @@ class BetterDisplayCliController(
             }
             return vcpInt
         } catch (e: Exception) {
-            e.printStackTrace()
+            LastControllerError.record(e)
             null
         }
     }
@@ -91,12 +91,13 @@ class BetterDisplayCliController(
             delay(1500) // Hardware delay after write to clear DDC buffer
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            LastControllerError.record(e)
             false
         }
     }
 
     override suspend fun getStatus(): MonitorStatus? {
+        LastControllerError.clear()
         return DdcStatusReader.readStatus(
             DdcStatusReader.PollingConfig(maxAttempts = 15, pollDelayMs = 1000, zeroConfirmations = 3)
         ) { vcp -> getVcpValue("0x$vcp") }

@@ -2,6 +2,8 @@ package com.g95nc.controller
 
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -93,6 +95,42 @@ class SettingsModalUiTest {
         composeRule.onNodeWithTag("ddcutilPathField").performTextInput("2")
 
         composeRule.onAllNodesWithContentDescription("ddcutil path is reachable").assertCountEquals(0)
+    }
+
+    @Test
+    fun testFailedTest_disablesSaveUntilThePathIsFixed() {
+        val runner = FakeCommandRunner { throw RuntimeException("not found") }
+        composeRule.setContent {
+            AppTheme(themeMode = ThemeMode.DARK) {
+                SettingsModal(config = AppConfig(ddcutilPath = "/bad/path"), onSave = {}, commandRunner = runner, platform = Platform.LINUX)
+            }
+        }
+
+        composeRule.onNodeWithText("Save Configuration").assertIsEnabled()
+
+        composeRule.onAllNodesWithText("Test")[0].performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Save Configuration").assertIsNotEnabled()
+        composeRule.onNodeWithText("Fix the path above before saving").assertIsDisplayed()
+    }
+
+    @Test
+    fun testSuccessfulTest_keepsSaveEnabled() {
+        val runner = FakeCommandRunner { "ddcutil 2.1.0" }
+        var saved: AppConfig? = null
+        composeRule.setContent {
+            AppTheme(themeMode = ThemeMode.DARK) {
+                SettingsModal(config = AppConfig(ddcutilPath = "ddcutil"), onSave = { saved = it }, commandRunner = runner, platform = Platform.LINUX)
+            }
+        }
+
+        composeRule.onAllNodesWithText("Test")[0].performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Save Configuration").assertIsEnabled().performClick()
+
+        assertEquals("ddcutil", saved?.ddcutilPath)
     }
 
     @Test

@@ -44,7 +44,7 @@ class DdcutilController(
             }
             null
         } catch (e: Exception) {
-            e.printStackTrace()
+            LastControllerError.record(e)
             null
         }
     }
@@ -70,7 +70,7 @@ class DdcutilController(
             }
             result
         } catch (e: Exception) {
-            e.printStackTrace()
+            LastControllerError.record(e)
             null
         }
     }
@@ -86,12 +86,13 @@ class DdcutilController(
             commandRunner.run(cmd)
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            LastControllerError.record(e)
             false
         }
     }
 
     override suspend fun getStatus(): MonitorStatus? {
+        LastControllerError.clear()
         return DdcStatusReader.readStatus(
             DdcStatusReader.PollingConfig(maxAttempts = 10, pollDelayMs = 500, zeroConfirmations = 2)
         ) { vcp -> if (vcp == "E2") getVcpValue("E2") ?: getVcpValue("0xE2") else getVcpValue(vcp) }

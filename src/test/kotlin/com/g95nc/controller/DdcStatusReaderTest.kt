@@ -147,6 +147,37 @@ class DdcStatusReaderTest {
     }
 
     @Test
+    fun testAudioSourceReadback_masksOffTheNonZeroHighByte() = runTest {
+        // Observed on real hardware: E8's readback carries a non-zero high byte (0x1002) even
+        // though the documented value range is a single byte (max 0x02) - only the low byte is
+        // the actual "which pane" value.
+        val status = DdcStatusReader.readStatus(fastConfig) { vcp ->
+            when (vcp) {
+                "E2" -> 0x3901
+                "E3" -> 0x0001
+                "E8" -> 0x1002
+                else -> null
+            }
+        }
+
+        assertEquals(0x02, status?.audioSource)
+    }
+
+    @Test
+    fun testAudioSourceReadback_masksOffTheNonZeroHighByteInSingleSourceModeToo() = runTest {
+        val status = DdcStatusReader.readStatus(fastConfig) { vcp ->
+            when (vcp) {
+                "E2" -> 0
+                "60" -> 0x11
+                "E8" -> 0x1001
+                else -> null
+            }
+        }
+
+        assertEquals(0x01, status?.audioSource)
+    }
+
+    @Test
     fun testUnknownSourceCodeInSinglePane_yieldsEmptyPaneMap() = runTest {
         val status = DdcStatusReader.readStatus(fastConfig) { vcp ->
             when (vcp) {

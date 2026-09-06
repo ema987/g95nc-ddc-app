@@ -85,6 +85,18 @@ class DashboardUiTest {
     }
 
     @Test
+    fun testRecoveryExhausted_showsTheUnderlyingControllerErrorWhenOneWasRecorded() {
+        LastControllerError.record(RuntimeException("ddcutil: no such file or directory"))
+        try {
+            setDashboard(status = null, recoveryExhausted = true)
+
+            composeRule.onNodeWithText("ddcutil: no such file or directory").assertIsDisplayed()
+        } finally {
+            LastControllerError.clear()
+        }
+    }
+
+    @Test
     fun testStillPolling_showsLoadingMessageInsteadOfGiveUpMessage() {
         setDashboard(status = null, recoveryExhausted = false)
 

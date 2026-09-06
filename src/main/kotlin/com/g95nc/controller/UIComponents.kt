@@ -117,6 +117,14 @@ fun Dashboard(
                             "Couldn't reach the monitor after several attempts.",
                             color = MaterialTheme.colorScheme.error
                         )
+                        LastControllerError.message?.let { reason ->
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                reason,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         Spacer(modifier = Modifier.height(16.dp))
                         Button(onClick = onRefresh) {
                             Text("Try Again")
@@ -597,15 +605,34 @@ fun SettingsModal(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-            Button(onClick = {
-                onSave(config.copy(
-                    ddcutilPath = ddcPath,
-                    betterdisplaycliPath = bdPath,
-                    enableSafetyCountdown = enableCountdown,
-                    themeMode = themeMode
-                ))
-            }) {
+        // Only blocks a *confirmed* bad path (a failed Test) - an untested path is still saveable,
+        // since forcing a re-test every time Settings is reopened would be its own annoyance.
+        val canSave = when (platform) {
+            Platform.LINUX -> ddcTestResult != false
+            Platform.MAC -> bdTestResult != false
+            Platform.WINDOWS, Platform.OTHER -> true
+        }
+
+        Row(horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            if (!canSave) {
+                Text(
+                    "Fix the path above before saving",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+            }
+            Button(
+                enabled = canSave,
+                onClick = {
+                    onSave(config.copy(
+                        ddcutilPath = ddcPath,
+                        betterdisplaycliPath = bdPath,
+                        enableSafetyCountdown = enableCountdown,
+                        themeMode = themeMode
+                    ))
+                }
+            ) {
                 Text("Save Configuration")
             }
         }

@@ -125,6 +125,7 @@ class Win32Dxva2Controller : MonitorController {
         // The native DXVA2 path is faster/more direct than the CLI tools, but the monitor's DDC
         // bus can still echo a stale value right after a source/layout switch - use the same
         // validating retry loop as the other platforms, just with a shorter budget.
+        LastControllerError.clear()
         return DdcStatusReader.readStatus(
             DdcStatusReader.PollingConfig(maxAttempts = 6, pollDelayMs = 300, zeroConfirmations = 2)
         ) { vcp -> getVcpValue(vcpCodeToInt(vcp)) }

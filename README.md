@@ -101,3 +101,36 @@ real monitor rather than guess it.
 4. Once the real layout is known: update the E3 decode block in `DdcStatusReader.kt` to populate
    `PaneChannel.PANE_3` (and fix panes 1/2 too if step 1 finds a problem), and add regression tests
    to `DdcStatusReaderTest.kt` using the real captured values as fixtures.
+
+### The monitor can drop out of PBP entirely, and won't necessarily accept the "50/50" write back
+
+Observed live (2026-09-06): mid-session, the monitor's layout genuinely changed to Off/Single
+Source on its own (not something this app wrote - it happened once after an audio-pane switch and
+once after a plain input-source change, neither of which touch `0xE2` at all) - the physical
+display briefly lost signal and macOS locked the session as a result. This is a real hardware-level
+event, not a status-read glitch: the app's own read of `0xE2` correctly reflected Off/Single Source
+both times, and stayed that way.
+
+What's notable: **explicitly writing `Layout.PBP_2_50_50` (`0xE2 = 0x03`) to recover from this did
+not work, twice, in two separate app sessions** - the write completed without error, but the
+monitor's readback stayed on Off/Single Source. Manually selecting **`Layout.PBP_2_LAST` (`0xE2 =
+0x01`, "PBP 2-way (last split)")** instead worked immediately, no power cycle or physical monitor
+control needed.
+
+This suggests recovering *into* a 2-way PBP state from Off/Single Source may need the generic
+"just turn PBP back on" command (`0x01`) rather than a specific split-ratio command (`0x03` etc.) -
+possibly because the monitor's PBP subsystem needs to be "kickstarted" via the simpler command
+before it'll accept a more specific one. Not yet confirmed:
+- Whether `0x03` fails specifically *from* Off/Single Source, or more generally.
+- Whether other specific-ratio codes (`0x02`, `0x04`, `0x05`, and the 3-way codes) have the same
+  problem, or just `0x03`.
+- Whether this is state-dependent (e.g. only right after an unplanned drop to Off/Single Source,
+  not from a normal, deliberate switch to Off/Single Source).
+- What actually *causes* the unplanned drop to Off/Single Source in the first place - both
+  observed occurrences happened during a heavy, unrelated background disk I/O load (a large file
+  copy), which may or may not be a contributing factor to general DDC/CI bus instability on this
+  monitor.
+
+No code change has been made for this yet - it needs more real-hardware data (which specific
+codes fail, under which conditions) before a safe fix (e.g. "prefer `PBP_2_LAST` when recovering
+from Off/Single Source") can be justified rather than guessed.

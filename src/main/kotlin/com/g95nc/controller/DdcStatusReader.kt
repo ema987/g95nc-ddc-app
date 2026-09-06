@@ -125,6 +125,12 @@ object DdcStatusReader {
      * uses via [PollingConfig.zeroConfirmations] - and falls back to the last reading if it never
      * stabilizes within the attempt budget, rather than blocking the whole status fetch forever.
      *
+     * The retry budget is kept deliberately small (2 extra reads, 3 total max) rather than matching
+     * E2's own generous attempt count: this runs on *every* status fetch, not just ones following an
+     * audio switch, and this monitor's DDC/CI bus is documented elsewhere in this file as capable of
+     * real instability under heavy polling - piling on more GET traffic than necessary, especially
+     * right after a write while the bus may still be settling, isn't free.
+     *
      * E8 is also documented as a single-byte value (max 0x02, three options), but this monitor's
      * readback carries a non-zero high byte too (observed: 0x1002) - the same "extra byte" pattern
      * as E2/E3's status reads, just not called out in the protocol notes for E8. Masking to the
@@ -132,7 +138,7 @@ object DdcStatusReader {
      */
     private suspend fun readSettledAudioSource(pollDelayMs: Long, readVcp: suspend (vcp: String) -> Int?): Int {
         var previous = (readVcp("E8") ?: 0) and 0xFF
-        repeat(4) {
+        repeat(2) {
             delay(pollDelayMs)
             val current = (readVcp("E8") ?: 0) and 0xFF
             if (current == previous) return current

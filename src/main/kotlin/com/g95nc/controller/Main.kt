@@ -237,12 +237,16 @@ private fun ApplicationScope.runMainApplication() {
                 pendingChange = null
 
                 runBusy {
+                    // Audio is deliberately left out here - it no longer goes through this
+                    // pendingChange/Safe Mode machinery at all (see onExecuteAudioAction), so
+                    // reverting a layout/source change must not also stomp on an audio switch the
+                    // user made in the meantime, which previously-recorded previousStatus knows
+                    // nothing about.
                     MonitorActions.applyTarget(
                         controller = controller,
                         currentStatus = currentStatus,
                         targetLayout = change.previousStatus.layout,
-                        targetPaneSources = change.previousStatus.paneSources,
-                        targetAudioSource = change.previousStatus.audioSource
+                        targetPaneSources = change.previousStatus.paneSources
                     )
 
                     status = controller.getStatus()
@@ -355,12 +359,13 @@ private fun ApplicationScope.runMainApplication() {
                                         pendingChange = null
 
                                         runBusy {
+                                            // See the auto-revert effect above - audio is
+                                            // intentionally excluded from what gets reverted here.
                                             MonitorActions.applyTarget(
                                                 controller = controller,
                                                 currentStatus = currentStatus,
                                                 targetLayout = change.previousStatus.layout,
-                                                targetPaneSources = change.previousStatus.paneSources,
-                                                targetAudioSource = change.previousStatus.audioSource
+                                                targetPaneSources = change.previousStatus.paneSources
                                             )
 
                                             status = controller.getStatus()

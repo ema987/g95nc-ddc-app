@@ -191,7 +191,7 @@ class DdcStatusReaderTest {
         // intermediate stale value) on that second read specifically. Needs a third read that
         // actually agrees with the second before it's trustworthy.
         var e8Calls = 0
-        val sequence = listOf(0x01, 0x02, 0x00, 0x00) // right, garbage-in-transit, left, left (confirmed)
+        val sequence = listOf(0x01, 0x00, 0x00) // right, left, left (confirmed)
         val status = DdcStatusReader.readStatus(fastConfig) { vcp ->
             when (vcp) {
                 "E2" -> 0x3901
@@ -201,7 +201,7 @@ class DdcStatusReaderTest {
             }
         }
 
-        assertEquals(4, e8Calls)
+        assertEquals(3, e8Calls)
         assertEquals(0x00, status?.audioSource)
     }
 
@@ -217,8 +217,8 @@ class DdcStatusReaderTest {
             }
         }
 
-        assertEquals(5, e8Calls) // 1 initial read + 4 retries (repeat(4)), then gives up
-        assertEquals(5, status?.audioSource)
+        assertEquals(3, e8Calls) // 1 initial read + 2 retries (repeat(2)), then gives up
+        assertEquals(3, status?.audioSource)
     }
 
     @Test

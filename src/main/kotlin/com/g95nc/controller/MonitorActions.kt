@@ -7,6 +7,12 @@ import kotlinx.coroutines.delay
  * safety-countdown revert. Centralized so a protocol-timing fix only needs to be made once.
  */
 object MonitorActions {
+    // TODO: this flat delay is applied to every layout transition alike, but the g95nc-ddc
+    // protocol notes specifically call out 3-way PBP (PBP_3_*) transitions as briefly dropping
+    // DDC entirely while the monitor re-enumerates - a bigger disruption than a 2-way/PIP switch.
+    // A single fixed delay may be needlessly long for 2-way/PIP and yet still not long enough for
+    // 3-way. Not changed here without real-hardware data (see README) to size a 3-way-specific
+    // delay safely rather than guessing one.
     const val LAYOUT_SETTLE_DELAY_MS = 4000L
     const val SOURCE_SETTLE_DELAY_MS = 4000L
 

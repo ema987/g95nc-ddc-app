@@ -34,6 +34,8 @@ enum class Layout(val code: Int, val description: String) {
 enum class SourceCode(val e3Code: Int, val mccsCode: Int, val description: String) {
     HDMI1(0x00, 0x11, "HDMI 1"),
     HDMI2(0x01, 0x12, "HDMI 2"),
+    // mccsCode 0x32 for HDMI3 is flagged as unconfirmed in the g95nc-ddc protocol notes, but it's
+    // been confirmed working live against the real monitor (2026-09-06) - see the README.
     HDMI3(0x02, 0x32, "HDMI 3"),
     DP(0x10, 0x0F, "DisplayPort");
 

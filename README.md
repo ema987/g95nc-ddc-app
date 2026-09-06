@@ -32,9 +32,19 @@ To package a standalone executable/installer for your current OS:
 
 ## Architecture
 - `MonitorController`: Interface defining the core interactions.
-- `Win32Dxva2Controller`: JNA implementation for Windows.
+- `Win32Dxva2Controller`: JNA implementation for Windows. No automated test coverage exists for
+  this one (unlike the other two, which are exercised via a fake command runner) - exercising it
+  means either a real Windows box or mocking the JNA interface itself. Correctness here currently
+  relies on manual testing on real Windows hardware.
 - `DdcutilController`: `ProcessBuilder` implementation for Linux.
 - `BetterDisplayCliController`: `ProcessBuilder` implementation for macOS.
+
+## Debug mode
+Settings has a collapsed-by-default "Show Debug Info" section (not shown prominently, since it's
+meant for development/troubleshooting rather than everyday use) that reads and displays the raw
+values of every VCP code this app knows about, including the six seen on the wire but never
+decoded (see "Undecoded VCP codes" below). It only reads - it never writes - so it's safe to use
+freely while diagnosing an issue.
 
 ## Design notes
 - **No background status polling, by design.** The dashboard fetches the monitor's status once
@@ -45,6 +55,11 @@ To package a standalone executable/installer for your current OS:
   three cross-platform code paths (a subprocess spawn on Linux/macOS, a native DXVA2 call on
   Windows) continuously contending with the monitor's own on-screen menu and with each other. If
   the on-screen state and the app's displayed state drift apart, hit Refresh.
+- **HDMI 3 input switching is confirmed working.** The [g95nc-ddc protocol notes](https://github.com/mwd102/g95nc-ddc/blob/main/docs/protocol.md)
+  flag `SourceCode.HDMI3`'s MCCS code (`0x60 = 0x32`) as unconfirmed - live testing against the
+  real monitor (2026-09-06) confirmed it switches correctly, so this app's own code treats it as a
+  normal, confirmed input rather than a tentative one. (The protocol repo itself is left as-is;
+  this just documents that our usage of it is verified.)
 
 ## Known limitations / open investigations
 
@@ -187,3 +202,31 @@ cannot fix a degraded DDC/CI channel. If switching still doesn't stick after a r
 tries, further automated retries are unlikely to help and just add more traffic to an already
 struggling channel; a `BetterDisplay.app` restart or monitor power-cycle is the next thing to try,
 not more software-side polling.
+
+### Undecoded VCP codes seen on the wire, never implemented
+
+The original reverse-engineering session (`windows/frida_vcp_trace.py` in the
+[g95nc-ddc](https://github.com/mwd102/g95nc-ddc) repo) traced six VCP codes beyond the three this
+app actually uses (`0xE2` layout, `0xE3` pane sources, `0xE8` audio): **`0xED`, `0xEF`, `0xF1`,
+`0xF8`, `0xF9`, `0xFA`**. None of these were ever decoded - what they control, or how their values
+map to anything user-visible, is unknown. They're deliberately not implemented here (guessing a
+meaning and shipping it risks silently doing the wrong thing to the monitor), but they're
+documented so a future session can revisit and reverse-engineer them.
+
+**What's needed to investigate them**: capture raw values for each code across a range of known,
+deliberate monitor states (different layouts, sources, audio settings) via the app's own debug
+mode (see "Debug mode" above) or a direct CLI query, and look for correlations - the same
+before/after comparison approach that resolved the E8 audio masking and (pending) the 3-way E3
+decode. Given how many past findings in this README turned out to need real-hardware data to
+settle safely, that's assumed here too rather than guessing from the trace alone.
+
+### 3-way PBP layout transitions may need a longer settle delay than 2-way/PIP
+
+`MonitorActions.LAYOUT_SETTLE_DELAY_MS` (currently `4000L`) is applied uniformly after every
+layout write, but the g95nc-ddc protocol notes specifically call out 3-way PBP (`PBP_3_*`)
+transitions as briefly dropping DDC entirely while the monitor re-enumerates - a bigger disruption
+than a 2-way or PIP switch causes. A single fixed delay may be needlessly long for 2-way/PIP while
+still not being long enough for 3-way, but there's no real-hardware data yet on how long a 3-way
+transition actually takes to settle. **Marked as a TODO in the code, not implemented** - sizing a
+3-way-specific delay needs real timing data (e.g. how long after a 3-way layout write `getStatus()`
+takes to stop returning stale/zero reads) rather than a guess.

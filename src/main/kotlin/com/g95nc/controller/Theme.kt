@@ -108,8 +108,14 @@ private val AppTypography = Typography(
     labelSmall = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Normal, fontSize = 11.sp)
 )
 
+/**
+ * @param content Receives the resolved dark/light boolean - not just for convenience, but because
+ * macOS's native window title bar is drawn outside Compose entirely and needs this same
+ * resolution to be told to match (see `syncTitleBarAppearance` in Main.kt); without it, the title
+ * bar just follows the OS's own current appearance regardless of what this resolved to.
+ */
 @Composable
-fun AppTheme(themeMode: ThemeMode = ThemeMode.SYSTEM, content: @Composable () -> Unit) {
+fun AppTheme(themeMode: ThemeMode = ThemeMode.SYSTEM, content: @Composable (isDark: Boolean) -> Unit) {
     // Defaults to dark (this app's original look) while SYSTEM detection resolves, then swaps to
     // light if the OS turns out to be. DARK/LIGHT skip detection entirely - no flash, no I/O.
     var isDark by remember(themeMode) { mutableStateOf(themeMode != ThemeMode.LIGHT) }
@@ -121,5 +127,5 @@ fun AppTheme(themeMode: ThemeMode = ThemeMode.SYSTEM, content: @Composable () ->
     }
 
     val scheme = if (isDark) AppColorScheme else AppLightColorScheme
-    MaterialTheme(colorScheme = scheme, typography = AppTypography, content = content)
+    MaterialTheme(colorScheme = scheme, typography = AppTypography) { content(isDark) }
 }

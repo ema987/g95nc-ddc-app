@@ -40,6 +40,23 @@ private fun preferredDashboardHeight(): Dp {
     return minOf(desired, usableScreenHeight - 40.dp)
 }
 
+/** macOS draws each window's title bar chrome itself, entirely outside Compose - without this
+ * hint it just follows the OS's own current appearance regardless of what [AppTheme] resolved to,
+ * which reads as broken the moment the two disagree (Dark/Light forced explicitly, or Follow
+ * System resolving differently than whatever the OS's setting is when the window happens to
+ * open). `ComposeWindow` is a `JFrame` under the hood, so this is the same Swing/AWT client
+ * property JetBrains' own IDEs use for the same purpose. */
+@Composable
+private fun WindowScope.syncTitleBarAppearance(isDark: Boolean) {
+    if (Platform.detect() != Platform.MAC) return
+    SideEffect {
+        (window as? javax.swing.JFrame)?.rootPane?.putClientProperty(
+            "apple.awt.windowAppearance",
+            if (isDark) "NSAppearanceNameDarkAqua" else "NSAppearanceNameAqua"
+        )
+    }
+}
+
 fun main() {
     // Must be set (and the Dock icon applied) before any AWT/Swing/Compose window is created -
     // macOS otherwise shows the JVM's main class name ("MainKt") and the default Java icon for a
@@ -57,7 +74,8 @@ fun main() {
             state = WindowState(width = 420.dp, height = 220.dp),
             resizable = false
         ) {
-            AppTheme(themeMode = ConfigManager.config.themeMode) {
+            AppTheme(themeMode = ConfigManager.config.themeMode) { isDark ->
+                syncTitleBarAppearance(isDark)
                 Surface(modifier = Modifier.fillMaxSize()) {
                     Column(
                         modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -112,7 +130,8 @@ private fun AboutDialog(onDismiss: () -> Unit, themeMode: ThemeMode) {
         state = rememberWindowState(width = 360.dp, height = 280.dp),
         resizable = false
     ) {
-        AppTheme(themeMode = themeMode) {
+        AppTheme(themeMode = themeMode) { isDark ->
+            syncTitleBarAppearance(isDark)
             Surface(modifier = Modifier.fillMaxSize()) {
                 Column(
                     modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -147,7 +166,8 @@ private fun ConfigWarningDialog(message: String, onDismiss: () -> Unit, themeMod
         state = rememberWindowState(width = 420.dp, height = 240.dp),
         resizable = false
     ) {
-        AppTheme(themeMode = themeMode) {
+        AppTheme(themeMode = themeMode) { isDark ->
+            syncTitleBarAppearance(isDark)
             Surface(modifier = Modifier.fillMaxSize()) {
                 Column(
                     modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -303,7 +323,8 @@ private fun ApplicationScope.runMainApplication() {
             icon = AppIconPainter,
             state = rememberWindowState(width = 680.dp, height = preferredDashboardHeight())
         ) {
-            AppTheme(themeMode = config.themeMode) {
+            AppTheme(themeMode = config.themeMode) { isDark ->
+                syncTitleBarAppearance(isDark)
                 Surface(modifier = Modifier.fillMaxSize()) {
                     if (!isToolAvailable) {
                         OnboardingWizard(
@@ -388,7 +409,8 @@ private fun ApplicationScope.runMainApplication() {
             icon = AppIconPainter,
             state = rememberWindowState(width = 500.dp, height = 400.dp)
         ) {
-            AppTheme(themeMode = config.themeMode) {
+            AppTheme(themeMode = config.themeMode) { isDark ->
+                syncTitleBarAppearance(isDark)
                 Surface(modifier = Modifier.fillMaxSize()) {
                     SettingsModal(
                         config = config,

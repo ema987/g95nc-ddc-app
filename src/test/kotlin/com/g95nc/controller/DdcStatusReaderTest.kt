@@ -164,6 +164,25 @@ class DdcStatusReaderTest {
     }
 
     @Test
+    fun testAudioSourceReadback_trustsTheSecondReadNotTheFirst() = runTest {
+        // Reproduces the real bug: switching the audio pane writes fine, but a single unguarded
+        // read right after can still echo the pane that was active *before* the switch - E8 needs
+        // the same "don't trust the first read" treatment E2/E3 already get.
+        var e8Calls = 0
+        val status = DdcStatusReader.readStatus(fastConfig) { vcp ->
+            when (vcp) {
+                "E2" -> 0x3901
+                "E3" -> 0x0001
+                "E8" -> { e8Calls++; if (e8Calls == 1) 0x01 else 0x00 }
+                else -> null
+            }
+        }
+
+        assertEquals(2, e8Calls)
+        assertEquals(0x00, status?.audioSource)
+    }
+
+    @Test
     fun testAudioSourceReadback_masksOffTheNonZeroHighByteInSingleSourceModeToo() = runTest {
         val status = DdcStatusReader.readStatus(fastConfig) { vcp ->
             when (vcp) {

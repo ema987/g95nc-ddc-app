@@ -58,12 +58,7 @@ object DdcStatusReader {
                     layout = Layout.OFF,
                     layoutStatusRaw = e2,
                     paneSources = mainSource?.let { mapOf(PaneChannel.PANE_1 to it) } ?: emptyMap(),
-                    // E8 is documented as a single-byte value (max 0x02, three options), but this
-                    // monitor's readback carries a non-zero high byte too (observed: 0x1002) - the
-                    // same "extra byte" pattern as E2/E3's status reads, just not called out in
-                    // the protocol notes for E8. Masking to the low byte is what actually matches
-                    // the three documented options.
-                    audioSource = (readVcp("E8") ?: 0) and 0xFF,
+                    audioSource = readSettledAudioSource(config.pollDelayMs, readVcp),
                     mainInputSource = v60
                 )
             }
@@ -103,12 +98,7 @@ object DdcStatusReader {
                     layout = layoutFromE2(e2),
                     layoutStatusRaw = e2,
                     paneSources = panes,
-                    // E8 is documented as a single-byte value (max 0x02, three options), but this
-                    // monitor's readback carries a non-zero high byte too (observed: 0x1002) - the
-                    // same "extra byte" pattern as E2/E3's status reads, just not called out in
-                    // the protocol notes for E8. Masking to the low byte is what actually matches
-                    // the three documented options.
-                    audioSource = (readVcp("E8") ?: 0) and 0xFF,
+                    audioSource = readSettledAudioSource(config.pollDelayMs, readVcp),
                     mainInputSource = 0
                 )
             }
@@ -118,5 +108,24 @@ object DdcStatusReader {
         }
 
         return null
+    }
+
+    /**
+     * A single E8 read taken right after switching the audio pane can echo the pre-switch value
+     * for a bit - the same class of DDC-bus lag this file already retries E2/E3 for, just without
+     * E8 ever getting the same treatment (that gap was the actual cause of "I switched the audio
+     * pane and the UI still shows the old one" - the write worked, but the very next status fetch
+     * read the bus before it had settled). Reads twice, one [pollDelayMs] apart, and trusts the
+     * second read.
+     *
+     * E8 is also documented as a single-byte value (max 0x02, three options), but this monitor's
+     * readback carries a non-zero high byte too (observed: 0x1002) - the same "extra byte" pattern
+     * as E2/E3's status reads, just not called out in the protocol notes for E8. Masking to the
+     * low byte is what actually matches the three documented options.
+     */
+    private suspend fun readSettledAudioSource(pollDelayMs: Long, readVcp: suspend (vcp: String) -> Int?): Int {
+        readVcp("E8")
+        delay(pollDelayMs)
+        return (readVcp("E8") ?: 0) and 0xFF
     }
 }

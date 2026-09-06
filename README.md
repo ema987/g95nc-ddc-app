@@ -45,3 +45,59 @@ To package a standalone executable/installer for your current OS:
   three cross-platform code paths (a subprocess spawn on Linux/macOS, a native DXVA2 call on
   Windows) continuously contending with the monitor's own on-screen menu and with each other. If
   the on-screen state and the app's displayed state drift apart, hit Refresh.
+
+## Known limitations / open investigations
+
+### 3-way PBP layouts never get a third pane's status (needs real-hardware data to fix)
+
+`DdcStatusReader.readStatus()` (see the `KNOWN GAP` comment in that file) decodes VCP `0xE3`'s
+16-bit readback into exactly two byte values - a high byte and a low byte - and maps them to
+`PaneChannel.PANE_1`/`PANE_2`. That's everything a 2-way split needs, but a 3-way split
+(`PBP_3_*` layouts) has a third pane whose source is never read at all: `PaneChannel.PANE_3` is
+simply absent from `MonitorStatus.paneSources` for every 3-way layout today. Visible effects:
+- The rightmost pane in the layout diagram/preset thumbnails always shows "No signal" in 3-way,
+  regardless of what's actually plugged in.
+- `Preset.matchesStatus()` can never return true for a 3-way preset (it compares the full
+  `paneSources` map), so the "Active" badge never lights up for one.
+- Applying a 3-way preset writes all 3 panes via `setSource()`, but the safety-countdown revert
+  and "Save Current as Preset" only ever capture 2 of the 3 panes back.
+
+**Why this hasn't just been "fixed" outright:** the [g95nc-ddc protocol notes](https://github.com/mwd102/g95nc-ddc/blob/main/docs/protocol.md)
+only vaguely describe the 3-way `E3` readback - "high byte `0xc0` in 3PBP, `0x10` in 2-way; the
+low bytes encode current pane sources" - with no exact bit layout. A single VCP read is 16 bits;
+if the high byte really is a fixed mode flag in both cases, only 8 bits are left to encode
+*three* independent pane sources, which doesn't obviously fit the write-side source codes
+(`HDMI1=0x00, HDMI2=0x01, HDMI3=0x02, DP=0x10`) as-is. Guessing a bit layout and shipping it would
+risk being confidently wrong (or, worse, making 3-way status resolution retry-until-timeout
+instead of just missing one pane) - this project's own convention (established the hard way, more
+than once this session - see the E8 audio masking fix) is to verify protocol behavior against the
+real monitor rather than guess it.
+
+**What's needed to actually fix this** (requires the real monitor, so it's parked for now):
+1. **Sanity-check the current 2-way decode first.** It's *possible* pane 1's decode has been
+   silently wrong this whole time and we haven't noticed because it happened to always be
+   DisplayPort - `SourceCode.DP.e3Code` is `0x10`, the exact value the protocol notes claim is a
+   fixed 2-way mode flag. Test: in a 2-way layout, use the app's own pane-click picker to set the
+   *left* pane to something other than DisplayPort (e.g. HDMI1), then check whether the diagram's
+   label actually updates. If it does, the current high-byte/low-byte decode is confirmed fine for
+   2-way and this concern can be dropped; if it doesn't, this is a second, more serious bug beyond
+   the missing third pane.
+2. **Capture a raw 3-way `E3` reading.** Switch to any `PBP_3_*` layout via the Change Layout
+   picker, then get the raw value `getvcp E3` (or the `betterdisplaycli`/DXVA2 equivalent) returns.
+   The easiest way to get this without manually reconstructing the app's own bus/tag discovery: add
+   a temporary debug `println` right after `readVcp("E3")` in `DdcStatusReader.kt`'s 3-way branch,
+   run via `./gradlew run` from a terminal so the value prints there, switch layouts, and read it
+   off. Repeat with a couple of different real per-pane source combinations (change one pane at a
+   time, ideally via the monitor's own OSD/remote so the app's own `setSource()` isn't the only
+   thing you're testing) to see how the raw value moves as sources change - that's the actual key
+   to reverse-engineering the bit layout.
+3. **Cross-check against what the E8 investigation already taught us**: E8 (audio, a documented
+   single-byte/3-option feature) turned out to carry an undocumented non-zero high byte on real
+   hardware (observed `0x1002`, i.e. only the low byte was the real value) - direct evidence this
+   monitor's firmware puts non-obvious bytes in VCP readbacks beyond what the docs describe. It's
+   plausible 3-way's "extra" pane isn't packed at a byte boundary at all (e.g. a different,
+   read-side-only encoding than the write-side source codes) - only real captured values across a
+   few combinations can settle this safely.
+4. Once the real layout is known: update the E3 decode block in `DdcStatusReader.kt` to populate
+   `PaneChannel.PANE_3` (and fix panes 1/2 too if step 1 finds a problem), and add regression tests
+   to `DdcStatusReaderTest.kt` using the real captured values as fixtures.

@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.*
 import kotlinx.coroutines.launch
@@ -322,11 +323,40 @@ private fun ApplicationScope.runMainApplication() {
     )
 
     if (isDashboardOpen) {
+        val dashboardWindowState = rememberWindowState(
+            size = DpSize(
+                config.dashboardWindowWidth?.dp ?: 680.dp,
+                config.dashboardWindowHeight?.dp ?: preferredDashboardHeight()
+            ),
+            position = if (config.dashboardWindowX != null && config.dashboardWindowY != null) {
+                WindowPosition.Absolute(config.dashboardWindowX.dp, config.dashboardWindowY.dp)
+            } else {
+                WindowPosition.PlatformDefault
+            }
+        )
+
+        // Debounced rather than saved only on close - the app can also quit from the tray while
+        // this window is still open, which wouldn't otherwise get a chance to persist a resize.
+        LaunchedEffect(dashboardWindowState.size, dashboardWindowState.position) {
+            delay(500)
+            val pos = dashboardWindowState.position
+            if (pos is WindowPosition.Absolute) {
+                ConfigManager.updateConfig(
+                    ConfigManager.config.copy(
+                        dashboardWindowWidth = dashboardWindowState.size.width.value,
+                        dashboardWindowHeight = dashboardWindowState.size.height.value,
+                        dashboardWindowX = pos.x.value,
+                        dashboardWindowY = pos.y.value
+                    )
+                )
+            }
+        }
+
         Window(
             onCloseRequest = { isDashboardOpen = false },
             title = AppInfo.NAME,
             icon = AppIconPainter,
-            state = rememberWindowState(width = 680.dp, height = preferredDashboardHeight())
+            state = dashboardWindowState
         ) {
             AppTheme(themeMode = config.themeMode) { isDark ->
                 syncTitleBarAppearance(isDark)

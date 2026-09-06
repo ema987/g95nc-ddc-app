@@ -77,7 +77,13 @@ data class AppConfig(
     val ddcutilPath: String = "ddcutil",
     val betterdisplaycliPath: String = "betterdisplaycli",
     val enableSafetyCountdown: Boolean = true,
-    val themeMode: ThemeMode = ThemeMode.SYSTEM
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    // Null until the user actually resizes/moves the dashboard - only then do we override the
+    // computed default/OS-placed window bounds on the next launch.
+    val dashboardWindowWidth: Float? = null,
+    val dashboardWindowHeight: Float? = null,
+    val dashboardWindowX: Float? = null,
+    val dashboardWindowY: Float? = null
 )
 
 fun List<Preset>.withoutPreset(id: String): List<Preset> = filterNot { it.id == id }

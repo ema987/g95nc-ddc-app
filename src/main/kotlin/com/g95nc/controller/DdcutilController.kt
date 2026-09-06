@@ -123,12 +123,30 @@ class DdcutilController(
         // issue documented in the README for layout writes) - a "successful" setVcpValue call only
         // means the command was sent without error, not that the monitor actually applied it. Read
         // it back and retry the write itself (not just the read) if it didn't stick.
+        //
+        // The readback itself needs the same "don't trust a single reading" treatment as the status
+        // reader's own E8 handling - a lone read right after a write can catch the bus still
+        // echoing a stale value in *either* direction, so this polls for two consecutive agreeing
+        // reads before treating the result as real, not just a single comparison against the target.
         repeat(3) {
             if (!setVcpValue("E8", hexValue)) return false
-            delay(500)
-            if ((getVcpValue("E8") ?: -1) and 0xFF == target) return true
+            if (readSettledE8() == target) return true
         }
+        LastControllerError.record(
+            RuntimeException("Monitor did not confirm audio source 0x$hexValue after 3 write attempts")
+        )
         return false
+    }
+
+    private suspend fun readSettledE8(): Int {
+        var previous = (getVcpValue("E8") ?: 0) and 0xFF
+        repeat(2) {
+            delay(500)
+            val current = (getVcpValue("E8") ?: 0) and 0xFF
+            if (current == previous) return current
+            previous = current
+        }
+        return previous
     }
 
     companion object {

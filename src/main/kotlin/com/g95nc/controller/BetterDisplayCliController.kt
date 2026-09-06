@@ -131,12 +131,31 @@ class BetterDisplayCliController(
         // This monitor doesn't reliably accept every DDC write on the first try (the same class of
         // issue documented in the README for layout writes) - a "successful" setVcpValue call only
         // means the command was sent without error, not that the monitor actually applied it. Read
-        // it back and retry the write itself (not just the read) if it didn't stick; setVcpValue
-        // already waits out its own post-write settle delay before we check.
+        // it back and retry the write itself (not just the read) if it didn't stick.
+        //
+        // The readback itself needs the same "don't trust a single reading" treatment as the status
+        // reader's own E8 handling - a lone read right after a write can catch the bus still
+        // echoing a stale value in *either* direction (looks unchanged when it did change, or looks
+        // changed when it didn't), so this polls for two consecutive agreeing reads before treating
+        // the result as real, not just a single comparison against the target.
         repeat(3) {
             if (!setVcpValue("0xE8", hexValue)) return false
-            if ((getVcpValue("0xE8") ?: -1) and 0xFF == target) return true
+            if (readSettledE8() == target) return true
         }
+        LastControllerError.record(
+            RuntimeException("Monitor did not confirm audio source 0x$hexValue after 3 write attempts")
+        )
         return false
+    }
+
+    private suspend fun readSettledE8(): Int {
+        var previous = (getVcpValue("0xE8") ?: 0) and 0xFF
+        repeat(2) {
+            delay(500)
+            val current = (getVcpValue("0xE8") ?: 0) and 0xFF
+            if (current == previous) return current
+            previous = current
+        }
+        return previous
     }
 }

@@ -11,6 +11,7 @@ import com.sun.jna.platform.win32.WinUser
 import com.sun.jna.platform.win32.WinUser.HMONITOR
 import com.sun.jna.ptr.IntByReference
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 interface Dxva2 : Library {
@@ -147,11 +148,27 @@ class Win32Dxva2Controller : MonitorController {
     override suspend fun setAudioSource(audioCode: Int): Boolean {
         val target = audioCode and 0xFF
         // Same "successful write != monitor actually applied it" issue documented for the CLI
-        // controllers - verify by reading back and retry the write itself if it didn't stick.
+        // controllers - verify by reading back and retry the write itself if it didn't stick. The
+        // readback is settle-confirmed (two agreeing reads), not a single comparison, so a lone
+        // stale read right after the write can't cause a false pass or a false retry.
         repeat(3) {
             if (!setVcpValue(0xE8, audioCode)) return false
-            if ((getVcpValue(0xE8) ?: -1) and 0xFF == target) return true
+            if (readSettledE8() == target) return true
         }
+        LastControllerError.record(
+            RuntimeException("Monitor did not confirm audio source 0x${target.toString(16)} after 3 write attempts")
+        )
         return false
+    }
+
+    private suspend fun readSettledE8(): Int {
+        var previous = (getVcpValue(0xE8) ?: 0) and 0xFF
+        repeat(2) {
+            delay(500)
+            val current = (getVcpValue(0xE8) ?: 0) and 0xFF
+            if (current == previous) return current
+            previous = current
+        }
+        return previous
     }
 }

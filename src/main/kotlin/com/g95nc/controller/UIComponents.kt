@@ -49,6 +49,63 @@ private fun IconTooltip(text: String, content: @Composable () -> Unit) {
     )
 }
 
+/** Every VCP code this app knows about, read-only, for the Settings debug panel. */
+private val DEBUG_VCP_CODES = listOf(
+    "E2" to "Layout", "E3" to "Pane sources", "E8" to "Audio source", "60" to "Main input",
+    "ED" to "Unknown", "EF" to "Unknown", "F1" to "Unknown",
+    "F8" to "Unknown", "F9" to "Unknown", "FA" to "Unknown"
+)
+
+/**
+ * Collapsed-by-default raw VCP register dump - not meant to be prominent for the end user, just
+ * a low-visibility aid for development/troubleshooting (the same kind of raw query that made
+ * diagnosing the audio-switching issues documented in the README possible). Read-only, so there's
+ * no risk in leaving it available - it never writes to the monitor.
+ */
+@Composable
+private fun DebugInfoSection(controller: MonitorController) {
+    var expanded by remember { mutableStateOf(false) }
+    var rawValues by remember { mutableStateOf<Map<String, Int?>?>(null) }
+    var isReading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    TextButton(onClick = { expanded = !expanded }, modifier = Modifier.testTag("debugInfoToggle")) {
+        Text(if (expanded) "Hide Debug Info" else "Show Debug Info", style = MaterialTheme.typography.labelSmall)
+    }
+
+    if (expanded) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Button(
+                enabled = !isReading,
+                onClick = {
+                    scope.launch {
+                        isReading = true
+                        rawValues = DEBUG_VCP_CODES.associate { (code, _) -> code to controller.getRawVcp(code) }
+                        isReading = false
+                    }
+                },
+                modifier = Modifier.testTag("readRawVcpButton")
+            ) {
+                Text("Read Raw VCP Registers")
+            }
+            if (isReading) {
+                Spacer(modifier = Modifier.width(8.dp))
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+            }
+        }
+        rawValues?.let { values ->
+            Spacer(modifier = Modifier.height(4.dp))
+            Column(modifier = Modifier.testTag("debugRawVcpValues")) {
+                DEBUG_VCP_CODES.forEach { (code, label) ->
+                    val value = values[code]
+                    val hex = value?.let { "0x" + it.toString(16).padStart(2, '0') } ?: "read failed"
+                    Text("$code ($label): $hex", style = MonoTextStyle)
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun Dashboard(
     status: MonitorStatus?,
@@ -478,6 +535,7 @@ fun OnboardingWizard(
 fun SettingsModal(
     config: AppConfig,
     onSave: (AppConfig) -> Unit,
+    controller: MonitorController,
     commandRunner: CommandRunner = ProcessUtils,
     platform: Platform = Platform.detect()
 ) {
@@ -597,6 +655,9 @@ fun SettingsModal(
             Spacer(modifier = Modifier.width(8.dp))
             Text("Enable Safety Countdown (auto-revert changes)")
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        DebugInfoSection(controller)
 
         Spacer(modifier = Modifier.weight(1f))
 

@@ -171,4 +171,38 @@ class BetterDisplayCliControllerTest {
             assertFalse(debugLog.exists(), "cli_debug.log should not be created by normal operation")
         }
     }
+
+    @Test
+    fun testIsToolAvailable_falseWhenCommandThrows() = runTest {
+        val runner = FakeCommandRunner { throw RuntimeException("command not found") }
+        val controller = BetterDisplayCliController("betterdisplaycli", runner)
+
+        assertEquals(false, controller.isToolAvailable())
+    }
+
+    @Test
+    fun testIsToolAvailable_recordsTheRealErrorWhenCommandThrows() = runTest {
+        LastControllerError.clear()
+        val runner = FakeCommandRunner { throw RuntimeException("command not found") }
+        val controller = BetterDisplayCliController("betterdisplaycli", runner)
+
+        controller.isToolAvailable()
+
+        assertEquals("command not found", LastControllerError.message)
+    }
+
+    @Test
+    fun testGetRawVcp_returnsTheRawValueForAnyCode() = runTest {
+        val runner = FakeCommandRunner { cmd ->
+            when {
+                cmd.contains("--identifiers") -> identifiersOutput
+                cmd.contains("--vcp=0xE2") -> "0x39"
+                cmd.contains("--vcp=0xED") -> "0x2a"
+                else -> ""
+            }
+        }
+        val controller = BetterDisplayCliController("betterdisplaycli", runner)
+
+        assertEquals(0x2a, controller.getRawVcp("ED"))
+    }
 }

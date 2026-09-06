@@ -106,6 +106,31 @@ class DdcutilControllerTest {
     }
 
     @Test
+    fun testIsToolAvailable_recordsTheRealErrorWhenCommandThrows() = runTest {
+        LastControllerError.clear()
+        val runner = FakeCommandRunner { throw RuntimeException("command not found") }
+        val controller = DdcutilController("ddcutil", runner)
+
+        controller.isToolAvailable()
+
+        assertEquals("command not found", LastControllerError.message)
+    }
+
+    @Test
+    fun testGetRawVcp_returnsTheRawValueForAnyCode() = runTest {
+        val runner = FakeCommandRunner { cmd ->
+            when {
+                cmd.contains("detect") -> detectOutput
+                cmd.contains("getvcp") && cmd.contains("ED") -> "VCP ED SNC x2a"
+                else -> ""
+            }
+        }
+        val controller = DdcutilController("ddcutil", runner)
+
+        assertEquals(0x2a, controller.getRawVcp("ED"))
+    }
+
+    @Test
     fun testGetStatus_reportsSingleSourceStatusEndToEnd() = runTest {
         val runner = FakeCommandRunner { cmd ->
             when {

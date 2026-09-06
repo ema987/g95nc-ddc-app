@@ -11,7 +11,6 @@ import com.sun.jna.platform.win32.WinUser
 import com.sun.jna.platform.win32.WinUser.HMONITOR
 import com.sun.jna.ptr.IntByReference
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 interface Dxva2 : Library {
@@ -32,6 +31,10 @@ interface Dxva2 : Library {
     fun DestroyPhysicalMonitor(hMonitor: Pointer): Boolean
 }
 
+// JNA + Windows-only: there is no automated test coverage for this controller (unlike
+// DdcutilController/BetterDisplayCliController, which are exercised via FakeCommandRunner) since
+// exercising it means either loading the real dxva2.dll on a Windows box or mocking the JNA
+// interface itself. Correctness here currently relies on manual testing on real Windows hardware.
 class Win32Dxva2Controller : MonitorController {
 
     // GetPhysicalMonitorsFromHMONITOR hands out OS handles that must be released with
@@ -114,13 +117,7 @@ class Win32Dxva2Controller : MonitorController {
         Dxva2.INSTANCE.SetVCPFeature(refreshed, vcp.toByte(), value)
     }
 
-    private fun vcpCodeToInt(vcp: String): Int = when (vcp) {
-        "E2" -> 0xE2
-        "E3" -> 0xE3
-        "E8" -> 0xE8
-        "60" -> 0x60
-        else -> throw IllegalArgumentException("Unknown VCP code: $vcp")
-    }
+    private fun parseVcpCode(vcp: String): Int? = vcp.removePrefix("0x").toIntOrNull(16)
 
     override suspend fun getStatus(): MonitorStatus? {
         // The native DXVA2 path is faster/more direct than the CLI tools, but the monitor's DDC
@@ -129,8 +126,10 @@ class Win32Dxva2Controller : MonitorController {
         LastControllerError.clear()
         return DdcStatusReader.readStatus(
             DdcStatusReader.PollingConfig(maxAttempts = 6, pollDelayMs = 300, zeroConfirmations = 2)
-        ) { vcp -> getVcpValue(vcpCodeToInt(vcp)) }
+        ) { vcp -> parseVcpCode(vcp)?.let { getVcpValue(it) } }
     }
+
+    override suspend fun getRawVcp(vcp: String): Int? = parseVcpCode(vcp)?.let { getVcpValue(it) }
 
     override suspend fun setLayout(layout: Layout): Boolean {
         return setVcpValue(0xE2, layout.code)
@@ -146,29 +145,10 @@ class Win32Dxva2Controller : MonitorController {
     }
 
     override suspend fun setAudioSource(audioCode: Int): Boolean {
-        val target = audioCode and 0xFF
-        // Same "successful write != monitor actually applied it" issue documented for the CLI
-        // controllers - verify by reading back and retry the write itself if it didn't stick. The
-        // readback is settle-confirmed (two agreeing reads), not a single comparison, so a lone
-        // stale read right after the write can't cause a false pass or a false retry.
-        repeat(3) {
-            if (!setVcpValue(0xE8, audioCode)) return false
-            if (readSettledE8() == target) return true
-        }
-        LastControllerError.record(
-            RuntimeException("Monitor did not confirm audio source 0x${target.toString(16)} after 3 write attempts")
+        return AudioSourceWriter.setAudioSource(
+            audioCode,
+            write = { setVcpValue(0xE8, audioCode) },
+            read = { getVcpValue(0xE8) }
         )
-        return false
-    }
-
-    private suspend fun readSettledE8(): Int {
-        var previous = (getVcpValue(0xE8) ?: 0) and 0xFF
-        repeat(2) {
-            delay(500)
-            val current = (getVcpValue(0xE8) ?: 0) and 0xFF
-            if (current == previous) return current
-            previous = current
-        }
-        return previous
     }
 }

@@ -1,7 +1,5 @@
 package com.g95nc.controller
 
-import kotlinx.coroutines.delay
-
 class DdcutilController(
     private var exePath: String,
     private val commandRunner: CommandRunner = ProcessUtils
@@ -19,6 +17,7 @@ class DdcutilController(
             val output = commandRunner.run(listOf(exePath, "--version"))
             output.isNotEmpty()
         } catch (e: Exception) {
+            LastControllerError.record(e)
             false
         }
     }
@@ -94,11 +93,19 @@ class DdcutilController(
     }
 
     override suspend fun getStatus(): MonitorStatus? {
+        // These are the original, untuned polling defaults - unlike BetterDisplayCliController's
+        // (see the comment there), they've never actually been revisited against real Linux
+        // hardware, so this is not a claim that 10/500/2 is sufficient, only that no problem
+        // requiring a bump has been observed here yet. If "Off/Single Source" false reads (see
+        // the README) turn up on Linux too, raising zeroConfirmations first is the same fix
+        // applied on macOS.
         LastControllerError.clear()
         return DdcStatusReader.readStatus(
             DdcStatusReader.PollingConfig(maxAttempts = 10, pollDelayMs = 500, zeroConfirmations = 2)
         ) { vcp -> if (vcp == "E2") getVcpValue("E2") ?: getVcpValue("0xE2") else getVcpValue(vcp) }
     }
+
+    override suspend fun getRawVcp(vcp: String): Int? = getVcpValue(vcp)
 
     override suspend fun setLayout(layout: Layout): Boolean {
         val hexValue = "0x" + layout.code.toString(16).padStart(2, '0')
@@ -118,35 +125,11 @@ class DdcutilController(
 
     override suspend fun setAudioSource(audioCode: Int): Boolean {
         val hexValue = "0x" + audioCode.toString(16).padStart(2, '0')
-        val target = audioCode and 0xFF
-        // This monitor doesn't reliably accept every DDC write on the first try (the same class of
-        // issue documented in the README for layout writes) - a "successful" setVcpValue call only
-        // means the command was sent without error, not that the monitor actually applied it. Read
-        // it back and retry the write itself (not just the read) if it didn't stick.
-        //
-        // The readback itself needs the same "don't trust a single reading" treatment as the status
-        // reader's own E8 handling - a lone read right after a write can catch the bus still
-        // echoing a stale value in *either* direction, so this polls for two consecutive agreeing
-        // reads before treating the result as real, not just a single comparison against the target.
-        repeat(3) {
-            if (!setVcpValue("E8", hexValue)) return false
-            if (readSettledE8() == target) return true
-        }
-        LastControllerError.record(
-            RuntimeException("Monitor did not confirm audio source 0x$hexValue after 3 write attempts")
+        return AudioSourceWriter.setAudioSource(
+            audioCode,
+            write = { setVcpValue("E8", hexValue) },
+            read = { getVcpValue("E8") }
         )
-        return false
-    }
-
-    private suspend fun readSettledE8(): Int {
-        var previous = (getVcpValue("E8") ?: 0) and 0xFF
-        repeat(2) {
-            delay(500)
-            val current = (getVcpValue("E8") ?: 0) and 0xFF
-            if (current == previous) return current
-            previous = current
-        }
-        return previous
     }
 
     companion object {

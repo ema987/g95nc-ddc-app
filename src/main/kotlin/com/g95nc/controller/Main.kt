@@ -454,7 +454,8 @@ private fun ApplicationScope.runMainApplication() {
                             ConfigManager.updateConfig(newConfig)
                             controller = MonitorController.create(newConfig)
                             isSettingsOpen = false
-                        }
+                        },
+                        controller = controller
                     )
                 }
             }

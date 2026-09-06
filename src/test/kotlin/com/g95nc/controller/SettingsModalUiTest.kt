@@ -32,6 +32,7 @@ class SettingsModalUiTest {
                 SettingsModal(
                     config = AppConfig(ddcutilPath = "ddcutil", betterdisplaycliPath = "betterdisplaycli", enableSafetyCountdown = true),
                     onSave = { saved = it },
+                    controller = FakeMonitorController(),
                     platform = Platform.LINUX
                 )
             }
@@ -54,7 +55,7 @@ class SettingsModalUiTest {
         val runner = FakeCommandRunner { "ddcutil 2.1.0" }
         composeRule.setContent {
             AppTheme(themeMode = ThemeMode.DARK) {
-                SettingsModal(config = AppConfig(ddcutilPath = "ddcutil"), onSave = {}, commandRunner = runner, platform = Platform.LINUX)
+                SettingsModal(config = AppConfig(ddcutilPath = "ddcutil"), onSave = {}, controller = FakeMonitorController(), commandRunner = runner, platform = Platform.LINUX)
             }
         }
 
@@ -69,7 +70,7 @@ class SettingsModalUiTest {
         val runner = FakeCommandRunner { throw RuntimeException("not found") }
         composeRule.setContent {
             AppTheme(themeMode = ThemeMode.DARK) {
-                SettingsModal(config = AppConfig(ddcutilPath = "/bad/path"), onSave = {}, commandRunner = runner, platform = Platform.LINUX)
+                SettingsModal(config = AppConfig(ddcutilPath = "/bad/path"), onSave = {}, controller = FakeMonitorController(), commandRunner = runner, platform = Platform.LINUX)
             }
         }
 
@@ -84,7 +85,7 @@ class SettingsModalUiTest {
         val runner = FakeCommandRunner { "ddcutil 2.1.0" }
         composeRule.setContent {
             AppTheme(themeMode = ThemeMode.DARK) {
-                SettingsModal(config = AppConfig(ddcutilPath = "ddcutil"), onSave = {}, commandRunner = runner, platform = Platform.LINUX)
+                SettingsModal(config = AppConfig(ddcutilPath = "ddcutil"), onSave = {}, controller = FakeMonitorController(), commandRunner = runner, platform = Platform.LINUX)
             }
         }
 
@@ -102,7 +103,7 @@ class SettingsModalUiTest {
         val runner = FakeCommandRunner { throw RuntimeException("not found") }
         composeRule.setContent {
             AppTheme(themeMode = ThemeMode.DARK) {
-                SettingsModal(config = AppConfig(ddcutilPath = "/bad/path"), onSave = {}, commandRunner = runner, platform = Platform.LINUX)
+                SettingsModal(config = AppConfig(ddcutilPath = "/bad/path"), onSave = {}, controller = FakeMonitorController(), commandRunner = runner, platform = Platform.LINUX)
             }
         }
 
@@ -121,7 +122,7 @@ class SettingsModalUiTest {
         var saved: AppConfig? = null
         composeRule.setContent {
             AppTheme(themeMode = ThemeMode.DARK) {
-                SettingsModal(config = AppConfig(ddcutilPath = "ddcutil"), onSave = { saved = it }, commandRunner = runner, platform = Platform.LINUX)
+                SettingsModal(config = AppConfig(ddcutilPath = "ddcutil"), onSave = { saved = it }, controller = FakeMonitorController(), commandRunner = runner, platform = Platform.LINUX)
             }
         }
 
@@ -137,7 +138,7 @@ class SettingsModalUiTest {
     fun testLinux_showsOnlyDdcutilField() {
         composeRule.setContent {
             AppTheme(themeMode = ThemeMode.DARK) {
-                SettingsModal(config = AppConfig(), onSave = {}, platform = Platform.LINUX)
+                SettingsModal(config = AppConfig(), onSave = {}, controller = FakeMonitorController(), platform = Platform.LINUX)
             }
         }
 
@@ -149,7 +150,7 @@ class SettingsModalUiTest {
     fun testMac_showsOnlyBetterDisplayCliField() {
         composeRule.setContent {
             AppTheme(themeMode = ThemeMode.DARK) {
-                SettingsModal(config = AppConfig(), onSave = {}, platform = Platform.MAC)
+                SettingsModal(config = AppConfig(), onSave = {}, controller = FakeMonitorController(), platform = Platform.MAC)
             }
         }
 
@@ -161,7 +162,7 @@ class SettingsModalUiTest {
     fun testWindows_showsNeitherPathFieldAndShowsAMessageInstead() {
         composeRule.setContent {
             AppTheme(themeMode = ThemeMode.DARK) {
-                SettingsModal(config = AppConfig(), onSave = {}, platform = Platform.WINDOWS)
+                SettingsModal(config = AppConfig(), onSave = {}, controller = FakeMonitorController(), platform = Platform.WINDOWS)
             }
         }
 
@@ -174,7 +175,7 @@ class SettingsModalUiTest {
     fun testThemeModeDefaultsToTheSavedConfigValue() {
         composeRule.setContent {
             AppTheme(themeMode = ThemeMode.DARK) {
-                SettingsModal(config = AppConfig(themeMode = ThemeMode.LIGHT), onSave = {}, platform = Platform.LINUX)
+                SettingsModal(config = AppConfig(themeMode = ThemeMode.LIGHT), onSave = {}, controller = FakeMonitorController(), platform = Platform.LINUX)
             }
         }
 
@@ -187,7 +188,7 @@ class SettingsModalUiTest {
         var saved: AppConfig? = null
         composeRule.setContent {
             AppTheme(themeMode = ThemeMode.DARK) {
-                SettingsModal(config = AppConfig(themeMode = ThemeMode.SYSTEM), onSave = { saved = it }, platform = Platform.LINUX)
+                SettingsModal(config = AppConfig(themeMode = ThemeMode.SYSTEM), onSave = { saved = it }, controller = FakeMonitorController(), platform = Platform.LINUX)
             }
         }
 
@@ -196,5 +197,36 @@ class SettingsModalUiTest {
         composeRule.onNodeWithText("Save Configuration").performClick()
 
         assertEquals(ThemeMode.DARK, saved?.themeMode)
+    }
+
+    @Test
+    fun testDebugInfo_isCollapsedByDefault() {
+        composeRule.setContent {
+            AppTheme(themeMode = ThemeMode.DARK) {
+                SettingsModal(config = AppConfig(), onSave = {}, controller = FakeMonitorController(), platform = Platform.LINUX)
+            }
+        }
+
+        composeRule.onNodeWithText("Show Debug Info").assertIsDisplayed()
+        composeRule.onAllNodes(androidx.compose.ui.test.hasTestTag("readRawVcpButton")).assertCountEquals(0)
+    }
+
+    @Test
+    fun testDebugInfo_expandingShowsRawVcpValuesOnceRead() {
+        val controller = FakeMonitorController(rawVcpValues = mapOf("E2" to 0x39, "E8" to 0x01))
+        composeRule.setContent {
+            AppTheme(themeMode = ThemeMode.DARK) {
+                SettingsModal(config = AppConfig(), onSave = {}, controller = controller, platform = Platform.LINUX)
+            }
+        }
+
+        composeRule.onNodeWithText("Show Debug Info").performClick()
+        composeRule.onNodeWithTag("readRawVcpButton").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("debugRawVcpValues").assertIsDisplayed()
+        composeRule.onNodeWithText("E2 (Layout): 0x39").assertIsDisplayed()
+        composeRule.onNodeWithText("E8 (Audio source): 0x01").assertIsDisplayed()
+        composeRule.onNodeWithText("ED (Unknown): read failed").assertIsDisplayed()
     }
 }

@@ -13,7 +13,10 @@ class FakeCommandRunner(private val handler: (List<String>) -> String) : Command
 }
 
 /** Test double for [MonitorController]: records every call instead of touching real hardware. */
-class FakeMonitorController(private val statusToReturn: MonitorStatus? = null) : MonitorController {
+class FakeMonitorController(
+    private val statusToReturn: MonitorStatus? = null,
+    private val rawVcpValues: Map<String, Int?> = emptyMap()
+) : MonitorController {
     sealed class Call {
         data class SetLayout(val layout: Layout) : Call()
         data class SetMainSource(val source: SourceCode) : Call()
@@ -46,4 +49,6 @@ class FakeMonitorController(private val statusToReturn: MonitorStatus? = null) :
     }
 
     override suspend fun isToolAvailable(): Boolean = true
+
+    override suspend fun getRawVcp(vcp: String): Int? = rawVcpValues[vcp]
 }

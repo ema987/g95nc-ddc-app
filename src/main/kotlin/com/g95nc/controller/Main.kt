@@ -25,13 +25,14 @@ private val singleInstanceLock = SingleInstanceLock(
 // an AWT/AppKit callback outside Compose's composition) so runMainApplication() can show it.
 private var showAboutDialog by mutableStateOf(false)
 
-/** A height that comfortably fits the dashboard's content (diagram + layout picker + audio source
- * picker + a couple of presets) without the large empty margin a fixed tall default leaves once
- * the diagram is small - capped to the actual screen so it's never taller than the viewport on a
- * small display. Anything beyond this (many presets, the rename/save-preset fields) is still
- * reachable via the existing scrollable content area. */
+/** A height that comfortably fits the dashboard's content (diagram + layout picker + a couple of
+ * presets) without the large empty margin a fixed tall default leaves once the diagram is small -
+ * capped to the actual screen so it's never taller than the viewport on a small display. Anything
+ * beyond this (many presets, the rename/save-preset fields) is still reachable via the existing
+ * scrollable content area. Audio source selection lives on the pane cells themselves now, not a
+ * separate section, so this doesn't need to budget extra height for it. */
 private fun preferredDashboardHeight(): Dp {
-    val desired = 780.dp
+    val desired = 700.dp
     val usableScreenHeight = try {
         java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.height.dp
     } catch (e: Exception) {

@@ -2,7 +2,6 @@ package com.g95nc.controller
 
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -154,14 +153,31 @@ class DashboardUiTest {
     }
 
     @Test
-    fun testAudioSourceButton_hiddenWhenLayoutHasOnlyOnePane() {
+    fun testPaneCell_hasNoAudioOptionWhenLayoutHasOnlyOnePane() {
         setDashboard(status = status(Layout.OFF, mapOf(PaneChannel.PANE_1 to SourceCode.HDMI1), audio = 0))
 
-        composeRule.onAllNodes(hasTestTag("audioSourceButton")).assertCountEquals(0)
+        composeRule.onNodeWithTag("paneCell_PANE_1").performClick()
+
+        composeRule.onAllNodes(hasTestTag("setAudioSource_PANE_1")).assertCountEquals(0)
     }
 
     @Test
-    fun testAudioSourceButton_showsCurrentPaneAndCallsSetAudioSourceOnSelection() {
+    fun testPaneCell_currentAudioPane_hasNoSetAudioSourceOption() {
+        setDashboard(
+            status = status(
+                Layout.PBP_2_50_50,
+                mapOf(PaneChannel.PANE_1 to SourceCode.HDMI1, PaneChannel.PANE_2 to SourceCode.HDMI2),
+                audio = PaneChannel.PANE_1.channel
+            )
+        )
+
+        // The current audio pane shouldn't offer to re-set itself as the audio source.
+        composeRule.onNodeWithTag("paneCell_PANE_1").performClick()
+        composeRule.onAllNodes(hasTestTag("setAudioSource_PANE_1")).assertCountEquals(0)
+    }
+
+    @Test
+    fun testPaneCell_offersSetAsAudioSourceAndCallsSetAudioSourceOnSelection() {
         val controller = FakeMonitorController()
         setDashboard(
             status = status(
@@ -173,12 +189,25 @@ class DashboardUiTest {
             onExecuteAction = { _, action -> runBlocking { action(null) } }
         )
 
-        composeRule.onNodeWithTag("audioSourceButton").assertIsDisplayed().assertTextContains("Left")
-
-        composeRule.onNodeWithTag("audioSourceButton").performClick()
-        composeRule.onNodeWithTag("audioSourceOption_PANE_2").performClick()
+        composeRule.onNodeWithTag("paneCell_PANE_2").performClick()
+        composeRule.onNodeWithTag("setAudioSource_PANE_2").performClick()
 
         assertEquals(FakeMonitorController.Call.SetAudioSource(PaneChannel.PANE_2.channel), controller.calls.single())
+    }
+
+    @Test
+    fun testPaneCell_showsAudioIconOnlyOnTheCurrentAudioPane() {
+        setDashboard(
+            status = status(
+                Layout.PBP_2_50_50,
+                mapOf(PaneChannel.PANE_1 to SourceCode.HDMI1, PaneChannel.PANE_2 to SourceCode.HDMI2),
+                audio = PaneChannel.PANE_2.channel
+            )
+        )
+
+        // Exactly one such icon exists across the whole diagram - onNodeWithContentDescription
+        // itself fails if there were zero or more than one, so this also confirms PANE_1 has none.
+        composeRule.onNodeWithContentDescription("Audio source pane").assertIsDisplayed()
     }
 
     @Test

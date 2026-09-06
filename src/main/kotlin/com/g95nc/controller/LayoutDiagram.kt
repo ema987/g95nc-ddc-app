@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.SettingsInputHdmi
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -81,11 +82,18 @@ fun LayoutDiagram(
             .padding(8.dp)
     ) {
         val slots = paneSlotsFor(layout)
+        // PBP/PIP audio (VCP 0xE8) only has one "which pane" control, not a per-pane one, so it's
+        // only meaningful once there's more than one pane to choose between.
+        val audioSelectable = slots.size > 1
 
         fun setSource(channel: PaneChannel, src: SourceCode) {
             onExecuteAction { _ ->
                 if (layout == Layout.OFF) controller.setMainSource(src) else controller.setSource(channel, src)
             }
+        }
+
+        fun setAudio(channel: PaneChannel) {
+            onExecuteAction { _ -> controller.setAudioSource(channel.channel) }
         }
 
         when {
@@ -98,7 +106,10 @@ fun LayoutDiagram(
             layout == Layout.PIP -> {
                 PaneCell(
                     slots[0].second, PaneChannel.PANE_1, paneSources[PaneChannel.PANE_1], isBusy,
-                    onSelect = { setSource(PaneChannel.PANE_1, it) }, modifier = Modifier.fillMaxSize()
+                    onSelect = { setSource(PaneChannel.PANE_1, it) },
+                    isAudioSource = audioSelectable && status.audioSource == PaneChannel.PANE_1.channel,
+                    onSetAudio = { setAudio(PaneChannel.PANE_1) }.takeIf { audioSelectable },
+                    modifier = Modifier.fillMaxSize()
                 )
                 PaneCell(
                     slots.getOrNull(1)?.second ?: "Sub",
@@ -106,6 +117,8 @@ fun LayoutDiagram(
                     paneSources[PaneChannel.PANE_2],
                     isBusy,
                     onSelect = { setSource(PaneChannel.PANE_2, it) },
+                    isAudioSource = audioSelectable && status.audioSource == PaneChannel.PANE_2.channel,
+                    onSetAudio = { setAudio(PaneChannel.PANE_2) }.takeIf { audioSelectable },
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .fillMaxSize(0.36f)
@@ -122,7 +135,10 @@ fun LayoutDiagram(
                     channels.forEachIndexed { i, channel ->
                         PaneCell(
                             slots[i].second, channel, paneSources[channel], isBusy,
-                            onSelect = { setSource(channel, it) }, modifier = Modifier.weight(weights[i]).fillMaxHeight()
+                            onSelect = { setSource(channel, it) },
+                            isAudioSource = audioSelectable && status.audioSource == channel.channel,
+                            onSetAudio = { setAudio(channel) }.takeIf { audioSelectable },
+                            modifier = Modifier.weight(weights[i]).fillMaxHeight()
                         )
                     }
                 }
@@ -135,7 +151,10 @@ fun LayoutDiagram(
                     channels.forEachIndexed { i, channel ->
                         PaneCell(
                             slots[i].second, channel, paneSources[channel], isBusy,
-                            onSelect = { setSource(channel, it) }, modifier = Modifier.weight(weights[i]).fillMaxHeight()
+                            onSelect = { setSource(channel, it) },
+                            isAudioSource = audioSelectable && status.audioSource == channel.channel,
+                            onSetAudio = { setAudio(channel) }.takeIf { audioSelectable },
+                            modifier = Modifier.weight(weights[i]).fillMaxHeight()
                         )
                     }
                 }
@@ -152,6 +171,8 @@ private fun PaneCell(
     isBusy: Boolean,
     onSelect: (SourceCode) -> Unit,
     modifier: Modifier,
+    isAudioSource: Boolean = false,
+    onSetAudio: (() -> Unit)? = null,
     emphasized: Boolean = false
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -194,6 +215,15 @@ private fun PaneCell(
             )
         }
 
+        if (isAudioSource) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                contentDescription = "Audio source pane",
+                tint = AppColors.signalActive,
+                modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(14.dp)
+            )
+        }
+
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             SourceCode.entries.filter { it != source }.forEach { src ->
                 DropdownMenuItem(
@@ -207,6 +237,23 @@ private fun PaneCell(
                     onClick = {
                         expanded = false
                         onSelect(src)
+                    }
+                )
+            }
+            if (onSetAudio != null && !isAudioSource) {
+                HorizontalDivider()
+                DropdownMenuItem(
+                    text = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Set as Audio Source")
+                        }
+                    },
+                    modifier = Modifier.testTag("setAudioSource_${channel.name}"),
+                    onClick = {
+                        expanded = false
+                        onSetAudio()
                     }
                 )
             }

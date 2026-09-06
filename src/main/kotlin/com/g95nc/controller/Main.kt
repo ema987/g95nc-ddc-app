@@ -139,6 +139,35 @@ private fun AboutDialog(onDismiss: () -> Unit, themeMode: ThemeMode) {
 }
 
 @Composable
+private fun ConfigWarningDialog(message: String, onDismiss: () -> Unit, themeMode: ThemeMode) {
+    Window(
+        onCloseRequest = onDismiss,
+        title = "Configuration Warning",
+        icon = AppIconPainter,
+        state = rememberWindowState(width = 420.dp, height = 240.dp),
+        resizable = false
+    ) {
+        AppTheme(themeMode = themeMode) {
+            Surface(modifier = Modifier.fillMaxSize()) {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(24.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("Configuration Warning", style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.height(12.dp))
+                    Text(message, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.height(20.dp))
+                    Button(onClick = onDismiss) {
+                        Text("OK")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ApplicationScope.runMainApplication() {
     var isSettingsOpen by remember { mutableStateOf(false) }
     var isDashboardOpen by remember { mutableStateOf(true) }
@@ -376,5 +405,13 @@ private fun ApplicationScope.runMainApplication() {
 
     if (showAboutDialog) {
         AboutDialog(onDismiss = { showAboutDialog = false }, themeMode = config.themeMode)
+    }
+
+    ConfigManager.loadWarning?.let { warning ->
+        ConfigWarningDialog(
+            message = warning,
+            onDismiss = { ConfigManager.dismissLoadWarning() },
+            themeMode = config.themeMode
+        )
     }
 }

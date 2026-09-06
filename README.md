@@ -102,35 +102,57 @@ real monitor rather than guess it.
    `PaneChannel.PANE_3` (and fix panes 1/2 too if step 1 finds a problem), and add regression tests
    to `DdcStatusReaderTest.kt` using the real captured values as fixtures.
 
-### The monitor can drop out of PBP entirely, and won't necessarily accept the "50/50" write back
+### The app can show "Off/Single Source" when the monitor never actually left PBP
 
-Observed live (2026-09-06): mid-session, the monitor's layout genuinely changed to Off/Single
-Source on its own (not something this app wrote - it happened once after an audio-pane switch and
-once after a plain input-source change, neither of which touch `0xE2` at all) - the physical
-display briefly lost signal and macOS locked the session as a result. This is a real hardware-level
-event, not a status-read glitch: the app's own read of `0xE2` correctly reflected Off/Single Source
-both times, and stayed that way.
+Observed live (2026-09-06), on macOS/`betterdisplaycli`: on at least one occurrence, the app's
+displayed status flipped to Off/Single Source ("No signal") shortly after an audio-pane switch,
+but the physical monitor **stayed in PBP the entire time** (confirmed directly by the user watching
+the real screen) - this was a false status read, not a real mode change. The most likely mechanism:
+this file already documents that "the DDC bus can echo stale/busy values (`0x00`/`0x3900`) for a
+while after a source or layout switch" - the audio write-verify-retry loop below (up to 3 write+
+read cycles) adds real extra traffic right before the next status check, plausibly leaving the bus
+in exactly that echoing state for long enough to satisfy the old confirmation count
+(`zeroConfirmations`) with *stale* readings, not a genuine settled one.
 
-What's notable: **explicitly writing `Layout.PBP_2_50_50` (`0xE2 = 0x03`) to recover from this did
-not work, twice, in two separate app sessions** - the write completed without error, but the
-monitor's readback stayed on Off/Single Source. Manually selecting **`Layout.PBP_2_LAST` (`0xE2 =
-0x01`, "PBP 2-way (last split)")** instead worked immediately, no power cycle or physical monitor
-control needed.
+**Mitigation applied**: `BetterDisplayCliController.getStatus()` raised `zeroConfirmations` from 3
+to 5 (and `maxAttempts` 15 → 20 to give the extra confirmations room) - requiring more consecutive
+matching reads before trusting a "Single Source" result makes a transient noisy burst far less
+likely to be mistaken for a real one. Not yet re-verified live given how much back-and-forth this
+already took in one session; if "Off/Single Source" still shows up spuriously, this number may need
+to go even higher, or the audio retry loop's write traffic may need to be reduced instead.
 
-This suggests recovering *into* a 2-way PBP state from Off/Single Source may need the generic
+**This casts some doubt on the earlier-documented "monitor drops PBP, `50/50` write doesn't
+recover it" finding below** - it's now unclear whether every one of those occurrences was a real
+hardware mode change or partly this same false-read phenomenon. One occurrence in this session
+*was* accompanied by the physical display actually losing signal and macOS locking the session as a
+result, which a misread status alone can't explain - so a real mode-drop mechanism likely still
+exists separately. Both are left documented until there's enough real-hardware data to tell them
+apart reliably.
+
+#### Original finding: the monitor can drop out of PBP entirely, and won't necessarily accept the "50/50" write back
+
+What's notable: **explicitly writing `Layout.PBP_2_50_50` (`0xE2 = 0x03`) to recover from an
+Off/Single Source state appeared not to work, twice, in two separate app sessions** - the write
+completed without error, but the monitor's readback stayed on Off/Single Source. Manually selecting
+**`Layout.PBP_2_LAST` (`0xE2 = 0x01`, "PBP 2-way (last split)")** instead appeared to work
+immediately, no power cycle or physical monitor control needed.
+
+This suggested recovering *into* a 2-way PBP state from Off/Single Source might need the generic
 "just turn PBP back on" command (`0x01`) rather than a specific split-ratio command (`0x03` etc.) -
 possibly because the monitor's PBP subsystem needs to be "kickstarted" via the simpler command
 before it'll accept a more specific one. Not yet confirmed:
-- Whether `0x03` fails specifically *from* Off/Single Source, or more generally.
+- Whether `0x03` fails specifically *from* Off/Single Source, or more generally - or whether it
+  never actually failed, and the readback was just stale (see above).
 - Whether other specific-ratio codes (`0x02`, `0x04`, `0x05`, and the 3-way codes) have the same
   problem, or just `0x03`.
 - Whether this is state-dependent (e.g. only right after an unplanned drop to Off/Single Source,
   not from a normal, deliberate switch to Off/Single Source).
-- What actually *causes* the unplanned drop to Off/Single Source in the first place - both
+- What actually *causes* a genuine unplanned drop to Off/Single Source in the first place - the
   observed occurrences happened during a heavy, unrelated background disk I/O load (a large file
   copy), which may or may not be a contributing factor to general DDC/CI bus instability on this
   monitor.
 
-No code change has been made for this yet - it needs more real-hardware data (which specific
-codes fail, under which conditions) before a safe fix (e.g. "prefer `PBP_2_LAST` when recovering
-from Off/Single Source") can be justified rather than guessed.
+No code change has been made for the write-recovery side of this yet - it needs more real-hardware
+data (ideally gathered once the read-side false-positive above is actually ruled out) before a safe
+fix (e.g. "prefer `PBP_2_LAST` when recovering from Off/Single Source") can be justified rather than
+guessed.

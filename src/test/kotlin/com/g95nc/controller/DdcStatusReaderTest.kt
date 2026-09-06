@@ -164,10 +164,12 @@ class DdcStatusReaderTest {
     }
 
     @Test
-    fun testAudioSourceReadback_trustsTheSecondReadNotTheFirst() = runTest {
+    fun testAudioSourceReadback_doesNotTrustASingleUnconfirmedRead() = runTest {
         // Reproduces the real bug: switching the audio pane writes fine, but a single unguarded
         // read right after can still echo the pane that was active *before* the switch - E8 needs
-        // the same "don't trust the first read" treatment E2/E3 already get.
+        // the same "don't trust an unconfirmed read" treatment E2/E3 already get. The bus settles
+        // on the new value starting with the 2nd read here, so two agreeing reads (2nd and 3rd)
+        // is what actually confirms it.
         var e8Calls = 0
         val status = DdcStatusReader.readStatus(fastConfig) { vcp ->
             when (vcp) {
@@ -178,8 +180,45 @@ class DdcStatusReaderTest {
             }
         }
 
-        assertEquals(2, e8Calls)
+        assertEquals(3, e8Calls)
         assertEquals(0x00, status?.audioSource)
+    }
+
+    @Test
+    fun testAudioSourceReadback_keepsPollingUntilTwoReadsAgree() = runTest {
+        // The real bug this reproduces: right -> left kept showing right even after the earlier
+        // "read twice, trust the second" fix, because the bus was still mid-transition (through an
+        // intermediate stale value) on that second read specifically. Needs a third read that
+        // actually agrees with the second before it's trustworthy.
+        var e8Calls = 0
+        val sequence = listOf(0x01, 0x02, 0x00, 0x00) // right, garbage-in-transit, left, left (confirmed)
+        val status = DdcStatusReader.readStatus(fastConfig) { vcp ->
+            when (vcp) {
+                "E2" -> 0x3901
+                "E3" -> 0x0001
+                "E8" -> { val v = sequence[e8Calls]; e8Calls++; v }
+                else -> null
+            }
+        }
+
+        assertEquals(4, e8Calls)
+        assertEquals(0x00, status?.audioSource)
+    }
+
+    @Test
+    fun testAudioSourceReadback_neverSettling_fallsBackToTheLastReadingInstead() = runTest {
+        var e8Calls = 0
+        val status = DdcStatusReader.readStatus(fastConfig) { vcp ->
+            when (vcp) {
+                "E2" -> 0x3901
+                "E3" -> 0x0001
+                "E8" -> { e8Calls++; e8Calls } // never repeats - never "settles"
+                else -> null
+            }
+        }
+
+        assertEquals(5, e8Calls) // 1 initial read + 4 retries (repeat(4)), then gives up
+        assertEquals(5, status?.audioSource)
     }
 
     @Test

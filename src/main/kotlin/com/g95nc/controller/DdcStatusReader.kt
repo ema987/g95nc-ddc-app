@@ -115,8 +115,15 @@ object DdcStatusReader {
      * for a bit - the same class of DDC-bus lag this file already retries E2/E3 for, just without
      * E8 ever getting the same treatment (that gap was the actual cause of "I switched the audio
      * pane and the UI still shows the old one" - the write worked, but the very next status fetch
-     * read the bus before it had settled). Reads twice, one [pollDelayMs] apart, and trusts the
-     * second read.
+     * read the bus before it had settled).
+     *
+     * An earlier version of this fix just read twice and trusted the second read unconditionally -
+     * that covered switching *to* some values but not reliably all of them (e.g. right -> left kept
+     * showing right), because a fixed single retry has no way to tell "settled" from "still
+     * mid-transition, just to a different stale value." This instead polls (bounded) until two
+     * consecutive reads actually agree, the same "don't trust a lone reading" principle E2 already
+     * uses via [PollingConfig.zeroConfirmations] - and falls back to the last reading if it never
+     * stabilizes within the attempt budget, rather than blocking the whole status fetch forever.
      *
      * E8 is also documented as a single-byte value (max 0x02, three options), but this monitor's
      * readback carries a non-zero high byte too (observed: 0x1002) - the same "extra byte" pattern
@@ -124,8 +131,13 @@ object DdcStatusReader {
      * low byte is what actually matches the three documented options.
      */
     private suspend fun readSettledAudioSource(pollDelayMs: Long, readVcp: suspend (vcp: String) -> Int?): Int {
-        readVcp("E8")
-        delay(pollDelayMs)
-        return (readVcp("E8") ?: 0) and 0xFF
+        var previous = (readVcp("E8") ?: 0) and 0xFF
+        repeat(4) {
+            delay(pollDelayMs)
+            val current = (readVcp("E8") ?: 0) and 0xFF
+            if (current == previous) return current
+            previous = current
+        }
+        return previous
     }
 }

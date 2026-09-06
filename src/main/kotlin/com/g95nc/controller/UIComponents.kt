@@ -148,6 +148,7 @@ fun Dashboard(
                         controller = controller,
                         isBusy = isBusy,
                         onExecuteAction = { action -> onExecuteAction(safeMode, action) },
+                        onExecuteAudioAction = { action -> onExecuteAction(false, action) },
                         modifier = Modifier.fillMaxWidth(0.55f)
                     )
                 }

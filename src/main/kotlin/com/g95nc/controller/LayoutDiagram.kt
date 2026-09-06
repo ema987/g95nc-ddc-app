@@ -68,6 +68,7 @@ fun LayoutDiagram(
     controller: MonitorController,
     isBusy: Boolean,
     onExecuteAction: (suspend (MonitorStatus?) -> Unit) -> Unit,
+    onExecuteAudioAction: (suspend (MonitorStatus?) -> Unit) -> Unit = onExecuteAction,
     modifier: Modifier = Modifier
 ) {
     val layout = status.layout
@@ -92,8 +93,14 @@ fun LayoutDiagram(
             }
         }
 
+        // Unlike a layout/input change, a wrong audio pane can't "lock you out" of the display -
+        // there's nothing to see, so nothing to protect against. Safe Mode's revert countdown is
+        // real here anyway (goes through the same onExecuteAction machinery a layout/input change
+        // does) but with no visual change to notice, it's very easy to miss and have it silently
+        // revert - which reads exactly like "switching the audio pane doesn't work". So audio
+        // always goes through onExecuteAudioAction, which never arms that countdown.
         fun setAudio(channel: PaneChannel) {
-            onExecuteAction { _ -> controller.setAudioSource(channel.channel) }
+            onExecuteAudioAction { _ -> controller.setAudioSource(channel.channel) }
         }
 
         when {

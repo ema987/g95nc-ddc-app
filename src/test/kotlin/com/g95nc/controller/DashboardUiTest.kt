@@ -196,6 +196,43 @@ class DashboardUiTest {
     }
 
     @Test
+    fun testSettingAudioSource_neverArmsTheSafetyCountdownEvenWithSafeModeOn() {
+        // Regression test: audio has no visual change to notice, so a missed/expired safety
+        // countdown just looked like "switching the audio pane doesn't work" - it must never be
+        // gated by Safe Mode, unlike layout/input source changes.
+        var receivedSafeMode: Boolean? = null
+        setDashboard(
+            status = status(
+                Layout.PBP_2_50_50,
+                mapOf(PaneChannel.PANE_1 to SourceCode.HDMI1, PaneChannel.PANE_2 to SourceCode.HDMI2),
+                audio = PaneChannel.PANE_1.channel
+            ),
+            config = AppConfig(enableSafetyCountdown = true),
+            onExecuteAction = { safeMode, action -> receivedSafeMode = safeMode; runBlocking { action(null) } }
+        )
+
+        composeRule.onNodeWithTag("paneCell_PANE_2").performClick()
+        composeRule.onNodeWithTag("setAudioSource_PANE_2").performClick()
+
+        assertEquals(false, receivedSafeMode)
+    }
+
+    @Test
+    fun testSettingInputSource_stillRespectsSafeModeUnlikeAudio() {
+        var receivedSafeMode: Boolean? = null
+        setDashboard(
+            status = status(Layout.PBP_2_50_50, mapOf(PaneChannel.PANE_1 to SourceCode.HDMI1, PaneChannel.PANE_2 to SourceCode.HDMI2)),
+            config = AppConfig(enableSafetyCountdown = true),
+            onExecuteAction = { safeMode, action -> receivedSafeMode = safeMode; runBlocking { action(null) } }
+        )
+
+        composeRule.onNodeWithTag("paneCell_PANE_1").performClick()
+        composeRule.onNodeWithText(SourceCode.DP.description).performClick()
+
+        assertEquals(true, receivedSafeMode)
+    }
+
+    @Test
     fun testPaneCell_showsAudioIconOnlyOnTheCurrentAudioPane() {
         setDashboard(
             status = status(

@@ -1,5 +1,7 @@
 package com.g95nc.controller
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.TooltipArea
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -22,6 +24,30 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import java.util.UUID
+
+/** Hover tooltip for an icon-only control - these have a contentDescription for accessibility,
+ * but nothing visible on hover otherwise, which makes them hard to discover on first use. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun IconTooltip(text: String, content: @Composable () -> Unit) {
+    TooltipArea(
+        tooltip = {
+            Surface(
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                shadowElevation = 4.dp,
+                modifier = Modifier.padding(4.dp)
+            ) {
+                Text(
+                    text,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
+        },
+        content = content
+    )
+}
 
 @Composable
 fun Dashboard(
@@ -62,11 +88,15 @@ fun Dashboard(
                 )
                 Text("Safe Mode", style = MaterialTheme.typography.labelMedium)
                 Spacer(modifier = Modifier.width(8.dp))
-                IconButton(onClick = onRefresh, enabled = !isBusy) {
-                    Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                IconTooltip("Refresh") {
+                    IconButton(onClick = onRefresh, enabled = !isBusy) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                    }
                 }
-                IconButton(onClick = onSettingsClick) {
-                    Icon(Icons.Default.Settings, contentDescription = "Settings")
+                IconTooltip("Settings") {
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    }
                 }
             }
         }
@@ -251,19 +281,23 @@ fun Dashboard(
                             ) {
                                 if (renamingPresetId != preset.id) {
                                     Column {
-                                        IconButton(
-                                            onClick = { onConfigChange(config.copy(presets = config.presets.movedUp(preset.id))) },
-                                            enabled = !isBusy && index > 0,
-                                            modifier = Modifier.size(24.dp)
-                                        ) {
-                                            Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Move preset up", modifier = Modifier.size(16.dp))
+                                        IconTooltip("Move up") {
+                                            IconButton(
+                                                onClick = { onConfigChange(config.copy(presets = config.presets.movedUp(preset.id))) },
+                                                enabled = !isBusy && index > 0,
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Move preset up", modifier = Modifier.size(16.dp))
+                                            }
                                         }
-                                        IconButton(
-                                            onClick = { onConfigChange(config.copy(presets = config.presets.movedDown(preset.id))) },
-                                            enabled = !isBusy && index < config.presets.lastIndex,
-                                            modifier = Modifier.size(24.dp)
-                                        ) {
-                                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Move preset down", modifier = Modifier.size(16.dp))
+                                        IconTooltip("Move down") {
+                                            IconButton(
+                                                onClick = { onConfigChange(config.copy(presets = config.presets.movedDown(preset.id))) },
+                                                enabled = !isBusy && index < config.presets.lastIndex,
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Move preset down", modifier = Modifier.size(16.dp))
+                                            }
                                         }
                                     }
                                     Spacer(modifier = Modifier.width(4.dp))
@@ -275,16 +309,20 @@ fun Dashboard(
                                         modifier = Modifier.weight(1f).padding(end = 8.dp).testTag("renamePresetField"),
                                         singleLine = true
                                     )
-                                    IconButton(onClick = {
-                                        if (renamePresetText.isNotBlank()) {
-                                            onConfigChange(config.copy(presets = config.presets.renamed(preset.id, renamePresetText)))
+                                    IconTooltip("Confirm rename") {
+                                        IconButton(onClick = {
+                                            if (renamePresetText.isNotBlank()) {
+                                                onConfigChange(config.copy(presets = config.presets.renamed(preset.id, renamePresetText)))
+                                            }
+                                            renamingPresetId = null
+                                        }) {
+                                            Icon(Icons.Default.Check, contentDescription = "Confirm rename")
                                         }
-                                        renamingPresetId = null
-                                    }) {
-                                        Icon(Icons.Default.Check, contentDescription = "Confirm rename")
                                     }
-                                    IconButton(onClick = { renamingPresetId = null }) {
-                                        Icon(Icons.Default.Close, contentDescription = "Cancel rename")
+                                    IconTooltip("Cancel rename") {
+                                        IconButton(onClick = { renamingPresetId = null }) {
+                                            Icon(Icons.Default.Close, contentDescription = "Cancel rename")
+                                        }
                                     }
                                 } else {
                                     Column(modifier = Modifier.padding(end = 8.dp)) {
@@ -313,20 +351,24 @@ fun Dashboard(
                                     }
                                     PresetThumbnail(preset, modifier = Modifier.width(56.dp))
                                     Spacer(modifier = Modifier.weight(1f))
-                                    IconButton(
-                                        onClick = {
-                                            renamePresetText = preset.name
-                                            renamingPresetId = preset.id
-                                        },
-                                        enabled = !isBusy
-                                    ) {
-                                        Icon(Icons.Default.Edit, contentDescription = "Rename preset")
+                                    IconTooltip("Rename preset") {
+                                        IconButton(
+                                            onClick = {
+                                                renamePresetText = preset.name
+                                                renamingPresetId = preset.id
+                                            },
+                                            enabled = !isBusy
+                                        ) {
+                                            Icon(Icons.Default.Edit, contentDescription = "Rename preset")
+                                        }
                                     }
-                                    IconButton(
-                                        onClick = { presetPendingDelete = preset },
-                                        enabled = !isBusy
-                                    ) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Delete preset")
+                                    IconTooltip("Delete preset") {
+                                        IconButton(
+                                            onClick = { presetPendingDelete = preset },
+                                            enabled = !isBusy
+                                        ) {
+                                            Icon(Icons.Default.Delete, contentDescription = "Delete preset")
+                                        }
                                     }
                                     Button(
                                         onClick = {

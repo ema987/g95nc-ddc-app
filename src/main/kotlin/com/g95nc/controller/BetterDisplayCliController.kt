@@ -98,8 +98,14 @@ class BetterDisplayCliController(
 
     override suspend fun getStatus(): MonitorStatus? {
         LastControllerError.clear()
+        // zeroConfirmations is higher here than DdcutilController's: observed live, a status check
+        // right after a write burst (e.g. the audio write-verify-retry loop, up to 3 write+read
+        // cycles) can catch the bus still echoing the "stale/busy" 0x3900 this file already knows
+        // about elsewhere - misreading it as a genuine, confirmed Off/Single Source even though the
+        // monitor never actually left PBP. More required consecutive matches makes that far less
+        // likely, at the cost of a slightly longer settle time on a real single-source read.
         return DdcStatusReader.readStatus(
-            DdcStatusReader.PollingConfig(maxAttempts = 15, pollDelayMs = 1000, zeroConfirmations = 3)
+            DdcStatusReader.PollingConfig(maxAttempts = 20, pollDelayMs = 1000, zeroConfirmations = 5)
         ) { vcp -> getVcpValue("0x$vcp") }
     }
 
@@ -121,6 +127,16 @@ class BetterDisplayCliController(
 
     override suspend fun setAudioSource(audioCode: Int): Boolean {
         val hexValue = "0x" + audioCode.toString(16).padStart(2, '0')
-        return setVcpValue("0xE8", hexValue)
+        val target = audioCode and 0xFF
+        // This monitor doesn't reliably accept every DDC write on the first try (the same class of
+        // issue documented in the README for layout writes) - a "successful" setVcpValue call only
+        // means the command was sent without error, not that the monitor actually applied it. Read
+        // it back and retry the write itself (not just the read) if it didn't stick; setVcpValue
+        // already waits out its own post-write settle delay before we check.
+        repeat(3) {
+            if (!setVcpValue("0xE8", hexValue)) return false
+            if ((getVcpValue("0xE8") ?: -1) and 0xFF == target) return true
+        }
+        return false
     }
 }

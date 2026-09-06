@@ -1,5 +1,7 @@
 package com.g95nc.controller
 
+import kotlinx.coroutines.delay
+
 class DdcutilController(
     private var exePath: String,
     private val commandRunner: CommandRunner = ProcessUtils
@@ -116,7 +118,17 @@ class DdcutilController(
 
     override suspend fun setAudioSource(audioCode: Int): Boolean {
         val hexValue = "0x" + audioCode.toString(16).padStart(2, '0')
-        return setVcpValue("E8", hexValue)
+        val target = audioCode and 0xFF
+        // This monitor doesn't reliably accept every DDC write on the first try (the same class of
+        // issue documented in the README for layout writes) - a "successful" setVcpValue call only
+        // means the command was sent without error, not that the monitor actually applied it. Read
+        // it back and retry the write itself (not just the read) if it didn't stick.
+        repeat(3) {
+            if (!setVcpValue("E8", hexValue)) return false
+            delay(500)
+            if ((getVcpValue("E8") ?: -1) and 0xFF == target) return true
+        }
+        return false
     }
 
     companion object {

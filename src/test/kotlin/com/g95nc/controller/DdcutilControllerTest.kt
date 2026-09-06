@@ -3,6 +3,7 @@ package com.g95nc.controller
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -122,6 +123,46 @@ class DdcutilControllerTest {
         assertEquals(Layout.OFF, status?.layout)
         assertEquals(SourceCode.DP, status?.paneSources?.get(PaneChannel.PANE_1))
         assertEquals(0x01, status?.audioSource)
+    }
+
+    @Test
+    fun testSetAudioSource_retriesTheWriteIfTheMonitorDidNotApplyItYet() = runTest {
+        // Reproduces a real observed bug: a "successful" setvcp command doesn't mean the monitor
+        // actually applied it - this monitor sometimes needs the write itself retried, not just
+        // the read. Here the monitor only "accepts" the write on the 2nd attempt.
+        var setCalls = 0
+        val runner = FakeCommandRunner { cmd ->
+            when {
+                cmd.contains("detect") -> detectOutput
+                cmd.contains("setvcp") && cmd.contains("E8") -> { setCalls++; "" }
+                cmd.contains("getvcp") && cmd.contains("E8") ->
+                    if (setCalls >= 2) "VCP E8 SNC x01" else "VCP E8 SNC x00"
+                else -> ""
+            }
+        }
+        val controller = DdcutilController("ddcutil", runner)
+
+        val result = controller.setAudioSource(1)
+
+        assertTrue(result)
+        assertEquals(2, setCalls)
+    }
+
+    @Test
+    fun testSetAudioSource_givesUpAfterThreeFailedAttempts() = runTest {
+        val runner = FakeCommandRunner { cmd ->
+            when {
+                cmd.contains("detect") -> detectOutput
+                cmd.contains("setvcp") && cmd.contains("E8") -> ""
+                cmd.contains("getvcp") && cmd.contains("E8") -> "VCP E8 SNC x00" // never matches target 1
+                else -> ""
+            }
+        }
+        val controller = DdcutilController("ddcutil", runner)
+
+        val result = controller.setAudioSource(1)
+
+        assertFalse(result)
     }
 
     @Test

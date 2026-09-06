@@ -107,6 +107,48 @@ class BetterDisplayCliControllerTest {
     }
 
     @Test
+    fun testSetAudioSource_retriesTheWriteIfTheMonitorDidNotApplyItYet() = runTest {
+        // Reproduces a real observed bug: a "successful" set command doesn't mean the monitor
+        // actually applied it - this monitor sometimes needs the write itself retried, not just
+        // the read. Here the monitor only "accepts" the write on the 2nd attempt.
+        var setCalls = 0
+        val runner = FakeCommandRunner { cmd ->
+            when {
+                cmd.contains("--identifiers") -> identifiersOutput
+                cmd.contains("--tagID=6") && cmd.any { it == "--vcp=0xE2" } -> "0x3900"
+                cmd.contains("set") && cmd.any { it == "--vcp=0xE8" } -> { setCalls++; "" }
+                cmd.contains("--tagID=6") && cmd.any { it == "--vcp=0xE8" } ->
+                    if (setCalls >= 2) "0x01" else "0x00"
+                else -> ""
+            }
+        }
+        val controller = BetterDisplayCliController("betterdisplaycli", runner)
+
+        val result = controller.setAudioSource(1)
+
+        assertTrue(result)
+        assertEquals(2, setCalls)
+    }
+
+    @Test
+    fun testSetAudioSource_givesUpAfterThreeFailedAttempts() = runTest {
+        val runner = FakeCommandRunner { cmd ->
+            when {
+                cmd.contains("--identifiers") -> identifiersOutput
+                cmd.contains("--tagID=6") && cmd.any { it == "--vcp=0xE2" } -> "0x3900"
+                cmd.contains("set") && cmd.any { it == "--vcp=0xE8" } -> ""
+                cmd.contains("--tagID=6") && cmd.any { it == "--vcp=0xE8" } -> "0x00" // never matches target 1
+                else -> ""
+            }
+        }
+        val controller = BetterDisplayCliController("betterdisplaycli", runner)
+
+        val result = controller.setAudioSource(1)
+
+        assertFalse(result)
+    }
+
+    @Test
     fun testNoDebugLogFileIsWrittenDuringOperation() = runTest {
         val debugLog = File("cli_debug.log")
         val existedBefore = debugLog.exists()

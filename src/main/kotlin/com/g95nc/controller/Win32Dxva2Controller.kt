@@ -145,6 +145,13 @@ class Win32Dxva2Controller : MonitorController {
     }
 
     override suspend fun setAudioSource(audioCode: Int): Boolean {
-        return setVcpValue(0xE8, audioCode)
+        val target = audioCode and 0xFF
+        // Same "successful write != monitor actually applied it" issue documented for the CLI
+        // controllers - verify by reading back and retry the write itself if it didn't stick.
+        repeat(3) {
+            if (!setVcpValue(0xE8, audioCode)) return false
+            if ((getVcpValue(0xE8) ?: -1) and 0xFF == target) return true
+        }
+        return false
     }
 }

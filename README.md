@@ -156,3 +156,34 @@ No code change has been made for the write-recovery side of this yet - it needs 
 data (ideally gathered once the read-side false-positive above is actually ruled out) before a safe
 fix (e.g. "prefer `PBP_2_LAST` when recovering from Off/Single Source") can be justified rather than
 guessed.
+
+### The DDC/CI channel itself can degrade under sustained heavy use, independent of any app code
+
+Observed live (2026-09-06), after a very long session of DDC traffic (many hundreds of read/write
+commands over several hours of testing): the audio source still would not reliably switch even with
+the settle-confirmed write-verify-retry logic above. Diagnosed by querying `betterdisplaycli`
+directly from a terminal, bypassing the app entirely:
+
+```
+betterdisplaycli get --tagID=7 --feature=ddcAlt --vcp=0xE2   # 14593 (0x3901, plausible)
+betterdisplaycli get --tagID=7 --feature=ddcAlt --vcp=0xE2   # 0 (same tag, same code, moments later)
+betterdisplaycli get --tagID=7 --feature=ddcAlt --vcp=0xE2   # 14593 again
+```
+
+The same tag, same VCP code, queried repeatedly with nothing in between, returned different answers
+across consecutive calls. That rules out a tag-selection bug (this monitor exposes itself as two
+separate macOS display identifiers, tagID 6 and 7, and one theory going in was that the app's
+tag-discovery might be locking onto the "wrong" one for a given feature - the instability shows up
+even holding the tag and VCP code fixed, so that's not the whole story) - this is the DDC/CI
+channel itself failing to return trustworthy answers, independent of anything this app's code does.
+
+Restarting the `BetterDisplay.app` helper (`osascript -e 'tell application "BetterDisplay" to
+quit'`, then relaunch) partially, transiently improved things but did not fully resolve the
+instability in this session. Not yet tried: a longer cooldown period with zero DDC traffic at all,
+or a physical power-cycle of the monitor.
+
+**Practical implication**: this app - and its `getvcp`/`setvcp`-based recovery via more retries -
+cannot fix a degraded DDC/CI channel. If switching still doesn't stick after a reasonable number of
+tries, further automated retries are unlikely to help and just add more traffic to an already
+struggling channel; a `BetterDisplay.app` restart or monitor power-cycle is the next thing to try,
+not more software-side polling.

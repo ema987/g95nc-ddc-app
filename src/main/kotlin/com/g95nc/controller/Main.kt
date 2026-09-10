@@ -286,56 +286,69 @@ private fun ApplicationScope.runMainApplication() {
         }
     }
 
-    // Tray Icon
-    Tray(
-        icon = TrayIcon,
-        state = trayState,
-        menu = {
-            Item("Open Dashboard", onClick = { isDashboardOpen = true })
-            Item("Settings", onClick = { isSettingsOpen = true })
-            Separator()
-            // Presets
-            config.presets.forEach { preset ->
-                Item("Preset: ${preset.name}", onClick = {
-                    if (!isBusy) {
-                        scope.launch {
-                            val currentStatus = status
-                            runBusy {
-                                MonitorActions.applyTarget(
-                                    controller = controller,
-                                    currentStatus = currentStatus,
-                                    targetLayout = preset.layout,
-                                    targetPaneSources = preset.paneSources,
-                                    targetAudioSource = preset.audioSource
-                                )
+    val applyPreset: (Preset) -> Unit = { preset ->
+        if (!isBusy) {
+            scope.launch {
+                val currentStatus = status
+                runBusy {
+                    MonitorActions.applyTarget(
+                        controller = controller,
+                        currentStatus = currentStatus,
+                        targetLayout = preset.layout,
+                        targetPaneSources = preset.paneSources,
+                        targetAudioSource = preset.audioSource
+                    )
 
-                                val newStatus = controller.getStatus()
-                                status = newStatus
+                    val newStatus = controller.getStatus()
+                    status = newStatus
 
-                                // Applying from the tray has no window open to show the result in,
-                                // so confirm it via a system notification instead - the same
-                                // matchesStatus() check that drives the "Active" badge decides
-                                // whether the readback actually landed on the target.
-                                trayState.sendNotification(
-                                    if (newStatus != null && preset.matchesStatus(newStatus)) {
-                                        Notification(AppInfo.NAME, "Applied preset \"${preset.name}\"", Notification.Type.Info)
-                                    } else {
-                                        Notification(AppInfo.NAME, "Couldn't confirm preset \"${preset.name}\" was applied", Notification.Type.Warning)
-                                    }
-                                )
-
-                                if (currentStatus != null && ConfigManager.config.enableSafetyCountdown) {
-                                    pendingChange = PendingChange(currentStatus, 10)
-                                }
-                            }
+                    // Applying from the tray has no window open to show the result in,
+                    // so confirm it via a system notification instead - the same
+                    // matchesStatus() check that drives the "Active" badge decides
+                    // whether the readback actually landed on the target.
+                    trayState.sendNotification(
+                        if (newStatus != null && preset.matchesStatus(newStatus)) {
+                            Notification(AppInfo.NAME, "Applied preset \"${preset.name}\"", Notification.Type.Info)
+                        } else {
+                            Notification(AppInfo.NAME, "Couldn't confirm preset \"${preset.name}\" was applied", Notification.Type.Warning)
                         }
+                    )
+
+                    if (currentStatus != null && ConfigManager.config.enableSafetyCountdown) {
+                        pendingChange = PendingChange(currentStatus, 10)
                     }
-                })
+                }
             }
-            Separator()
-            Item("Quit", onClick = ::exitApplication)
         }
-    )
+    }
+
+    if (Platform.detect() == Platform.LINUX) {
+        LinuxTray(
+            onDashboardOpenChange = { isDashboardOpen = it },
+            onSettingsOpenChange = { isSettingsOpen = it },
+            presets = config.presets,
+            isBusy = isBusy,
+            onApplyPreset = applyPreset,
+            onQuit = ::exitApplication
+        )
+    } else {
+        Tray(
+            icon = TrayIcon,
+            state = trayState,
+            onAction = { isDashboardOpen = true },
+            menu = {
+                Item("Open Dashboard", onClick = { isDashboardOpen = true })
+                Item("Settings", onClick = { isSettingsOpen = true })
+                Separator()
+                // Presets
+                config.presets.forEach { preset ->
+                    Item("Preset: ${preset.name}", onClick = { applyPreset(preset) })
+                }
+                Separator()
+                Item("Quit", onClick = ::exitApplication)
+            }
+        )
+    }
 
     if (isDashboardOpen) {
         val dashboardWindowState = rememberWindowState(

@@ -31,6 +31,9 @@ dependencies {
     implementation(libs.jna)
     implementation(libs.jna.platform)
     
+    // SystemTray for Linux
+    implementation(libs.dorkbox.systemtray)
+    
     // Test
     testImplementation(kotlin("test"))
     testImplementation(libs.kotlinx.coroutines.test)

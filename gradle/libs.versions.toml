@@ -5,6 +5,7 @@ composeIcons = "1.7.3"
 coroutines = "1.11.0"
 serialization = "1.11.0"
 jna = "5.17.0"
+dorkbox-systemtray = "4.4"
 
 [libraries]
 compose-material = { module = "org.jetbrains.compose.material:material", version.ref = "compose" }
@@ -16,6 +17,7 @@ kotlinx-coroutines-swing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
 jna-platform = { module = "net.java.dev.jna:jna-platform", version.ref = "jna" }
+dorkbox-systemtray = { module = "com.dorkbox:SystemTray", version.ref = "dorkbox-systemtray" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

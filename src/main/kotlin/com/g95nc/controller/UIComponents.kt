@@ -584,7 +584,7 @@ fun SettingsModal(
     var isTestingBd by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    Column(modifier = Modifier.padding(24.dp).fillMaxSize()) {
+    Column(modifier = Modifier.padding(24.dp).fillMaxWidth().verticalScroll(rememberScrollState())) {
         Text("Settings", style = MaterialTheme.typography.titleLarge)
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -693,7 +693,7 @@ fun SettingsModal(
         Spacer(modifier = Modifier.height(16.dp))
         DebugInfoSection(controller)
 
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(32.dp))
 
         // Only blocks a *confirmed* bad path (a failed Test) - an untested path is still saveable,
         // since forcing a re-test every time Settings is reopened would be its own annoyance.

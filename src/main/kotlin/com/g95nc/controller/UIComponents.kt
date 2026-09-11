@@ -2,6 +2,7 @@ package com.g95nc.controller
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.TooltipArea
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -20,6 +21,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -121,7 +123,11 @@ fun Dashboard(
     onExecuteAction: (Boolean, suspend (MonitorStatus?) -> Boolean) -> Unit,
     onRefresh: () -> Unit,
     actionFailureMessage: String? = null,
-    onDismissActionFailure: () -> Unit = {}
+    onDismissActionFailure: () -> Unit = {},
+    // Reports the content's own natural height in px, same idea (and same caveats - see
+    // SettingsModal's onContentHeightMeasured) as there: needed to size a window to fit this
+    // exactly on first launch, before any window size has been persisted.
+    onContentHeightMeasured: (Int) -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
     var isSavingPreset by remember { mutableStateOf(false) }
@@ -133,7 +139,19 @@ fun Dashboard(
     // can drift from what's actually persisted (and what the Settings modal shows).
     val safeMode = config.enableSafetyCountdown
 
-    Column(modifier = Modifier.fillMaxSize().padding(20.dp)) {
+    Column(
+        modifier = Modifier
+            // Outermost, so it measures the intrinsic height of fillMaxSize+padding+content as one
+            // unit - unlike SettingsModal's version of this, padding here is inside what's measured,
+            // so its own correct intrinsic contribution is included with no manual add-back needed.
+            .layout { measurable, constraints ->
+                onContentHeightMeasured(measurable.minIntrinsicHeight(constraints.maxWidth))
+                val placeable = measurable.measure(constraints)
+                layout(placeable.width, placeable.height) { placeable.placeRelative(0, 0) }
+            }
+            .fillMaxSize()
+            .padding(20.dp)
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -571,7 +589,13 @@ fun SettingsModal(
     onSave: (AppConfig) -> Unit,
     controller: MonitorController,
     commandRunner: CommandRunner = ProcessUtils,
-    platform: Platform = Platform.detect()
+    platform: Platform = Platform.detect(),
+    scrollState: ScrollState = rememberScrollState(),
+    // Reports the content's own natural height in px, i.e. how tall it would be with nothing
+    // clipping/scrolling it - unlike scrollState (whose viewportSize just mirrors whatever height
+    // the window happened to allocate when nothing needs scrolling), this is what a caller needs
+    // to size a window to fit the content exactly, with no leftover space.
+    onContentHeightMeasured: (Int) -> Unit = {}
 ) {
     var ddcPath by remember { mutableStateOf(config.ddcutilPath) }
     var bdPath by remember { mutableStateOf(config.betterdisplaycliPath) }
@@ -584,7 +608,23 @@ fun SettingsModal(
     var isTestingBd by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    Column(modifier = Modifier.padding(24.dp).fillMaxWidth().verticalScroll(rememberScrollState())) {
+    Column(
+        modifier = Modifier
+            .padding(24.dp)
+            .fillMaxWidth()
+            .verticalScroll(scrollState)
+            // verticalScroll gives its child a constraint whose minHeight is the *current* viewport
+            // (so short content still fills it), which makes both a plain measure() and
+            // onSizeChanged() report that viewport size back, not the content's own height - so a
+            // caller trying to size a window to fit this content exactly never sees a number smaller
+            // than whatever the window currently is. minIntrinsicHeight ignores that imposed minHeight
+            // and asks the content what it actually needs, which is what onContentHeightMeasured needs.
+            .layout { measurable, constraints ->
+                onContentHeightMeasured(measurable.minIntrinsicHeight(constraints.maxWidth))
+                val placeable = measurable.measure(constraints)
+                layout(placeable.width, placeable.height) { placeable.placeRelative(0, 0) }
+            }
+    ) {
         Text("Settings", style = MaterialTheme.typography.titleLarge)
         Spacer(modifier = Modifier.height(24.dp))
 

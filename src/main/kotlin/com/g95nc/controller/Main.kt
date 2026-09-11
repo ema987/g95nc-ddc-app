@@ -2,6 +2,7 @@ package com.g95nc.controller
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -9,6 +10,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
@@ -26,20 +28,52 @@ private val singleInstanceLock = SingleInstanceLock(
 // an AWT/AppKit callback outside Compose's composition) so runMainApplication() can show it.
 private var showAboutDialog by mutableStateOf(false)
 
-/** A height that comfortably fits the dashboard's content (diagram + layout picker + a couple of
- * presets) without the large empty margin a fixed tall default leaves once the diagram is small -
- * capped to the actual screen so it's never taller than the viewport on a small display. Anything
- * beyond this (many presets, the rename/save-preset fields) is still reachable via the existing
- * scrollable content area. Audio source selection lives on the pane cells themselves now, not a
- * separate section, so this doesn't need to budget extra height for it. */
-private fun preferredDashboardHeight(): Dp {
-    val desired = 700.dp
+/** Caps a desired window height to the actual screen so it's never taller than the viewport on a
+ * small display; anything beyond that is still reachable via the window's scrollable content. */
+private fun capToScreenHeight(desired: Dp): Dp {
     val usableScreenHeight = try {
         java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.height.dp
     } catch (e: Exception) {
         return desired
     }
     return minOf(desired, usableScreenHeight - 40.dp)
+}
+
+/** A height that comfortably fits the dashboard's content (diagram + layout picker + a couple of
+ * presets) without the large empty margin a fixed tall default leaves once the diagram is small.
+ * Anything beyond this (many presets, the rename/save-preset fields) is still reachable via the
+ * existing scrollable content area. Audio source selection lives on the pane cells themselves
+ * now, not a separate section, so this doesn't need to budget extra height for it. */
+private fun preferredDashboardHeight(): Dp = capToScreenHeight(700.dp)
+
+/** Returns a callback to feed a measured content height (in px) - see SettingsModal's and
+ * Dashboard's own onContentHeightMeasured docs for what that means and why it can't just come
+ * from a plain measured/ScrollState size. Resizes [windowState] to fit that content exactly, once.
+ *
+ * Resizing [windowState] from inside the measurement callback itself has no effect - it fires
+ * from the layout phase, and Window only picks up state.size changes made from a
+ * composition-safe context - so the measurement just lands in state here, and the LaunchedEffect
+ * (which runs in such a context) does the actual resize. */
+@Composable
+private fun WindowScope.rememberContentHeightResizer(windowState: WindowState, contentPadding: Dp = 0.dp): (Int) -> Unit {
+    val density = LocalDensity.current
+    var measuredContentHeightPx by remember { mutableStateOf<Int?>(null) }
+    var didResize by remember { mutableStateOf(false) }
+    LaunchedEffect(measuredContentHeightPx) {
+        val contentHeightPx = measuredContentHeightPx ?: return@LaunchedEffect
+        if (didResize) return@LaunchedEffect
+        didResize = true
+        val chrome = with(density) { (window.insets.top + window.insets.bottom).toDp() }
+        val contentHeight = with(density) { contentHeightPx.toDp() }
+        // minIntrinsicHeight() (see the callers) under-reports by a few dp versus the real layout
+        // for components like OutlinedTextField - this fudge covers that gap.
+        val measurementFudge = 16.dp
+        windowState.size = DpSize(
+            windowState.size.width,
+            capToScreenHeight(chrome + contentPadding + contentHeight + measurementFudge)
+        )
+    }
+    return { measuredContentHeightPx = it }
 }
 
 /** macOS draws each window's title bar chrome itself, entirely outside Compose - without this
@@ -389,6 +423,25 @@ private fun ApplicationScope.runMainApplication() {
             AppTheme(themeMode = config.themeMode) { isDark ->
                 syncTitleBarAppearance(isDark)
                 Surface(modifier = Modifier.fillMaxSize()) {
+                    // Only on the very first-ever launch (nothing persisted yet, so
+                    // preferredDashboardHeight()'s guess is what's currently showing) - once a
+                    // height is persisted, later opens just reuse it and onContentHeightMeasured is
+                    // a no-op. Captured once (not reread every recomposition): the debounced save
+                    // effect above persists a height shortly after open anyway (as soon as the
+                    // window's position resolves from PlatformDefault to an actual Absolute one),
+                    // which would otherwise flip this false - using the fallback height - before
+                    // status (and so the real content to measure) has had a chance to arrive.
+                    val isFirstEverOpen = remember { config.dashboardWindowHeight == null }
+                    var onContentHeightMeasured: (Int) -> Unit = {}
+                    if (isFirstEverOpen) {
+                        val resizeToContent = rememberContentHeightResizer(dashboardWindowState)
+                        // Before status loads, Dashboard renders a small loading placeholder
+                        // instead of its real content - measuring that would auto-size the window
+                        // far too short, so this waits for the real content to be what's measured.
+                        if (status != null) {
+                            onContentHeightMeasured = resizeToContent
+                        }
+                    }
                     if (!isToolAvailable) {
                         OnboardingWizard(
                             onOpenSettings = { isSettingsOpen = true },
@@ -467,7 +520,8 @@ private fun ApplicationScope.runMainApplication() {
                                         }
                                     }
                                 }
-                            }
+                            },
+                            onContentHeightMeasured = onContentHeightMeasured
                         )
                     }
                 }
@@ -476,15 +530,25 @@ private fun ApplicationScope.runMainApplication() {
     }
 
     if (isSettingsOpen) {
+        // Compose Desktop's Window has no built-in "size to content" option, so
+        // rememberContentHeightResizer below measures the content's real height (via
+        // SettingsModal's onContentHeightMeasured) and resizes the window to fit it, once. The
+        // initial 640.dp is just a starting guess for the one frame before that measurement lands.
+        val settingsWindowState = rememberWindowState(width = 500.dp, height = capToScreenHeight(640.dp))
         Window(
             onCloseRequest = { isSettingsOpen = false },
             title = "Settings & Tools",
             icon = AppIconPainter,
-            state = rememberWindowState(width = 500.dp, height = 400.dp)
+            state = settingsWindowState
         ) {
             AppTheme(themeMode = config.themeMode) { isDark ->
                 syncTitleBarAppearance(isDark)
                 Surface(modifier = Modifier.fillMaxSize()) {
+                    val settingsScrollState = rememberScrollState()
+                    // The 24.dp padding on each side of SettingsModal's Column is outside what
+                    // onContentHeightMeasured sees, so it isn't in the measured content height
+                    // either - contentPadding here adds it back.
+                    val resizeToContent = rememberContentHeightResizer(settingsWindowState, contentPadding = 48.dp)
                     SettingsModal(
                         config = config,
                         onSave = { newConfig ->
@@ -492,7 +556,9 @@ private fun ApplicationScope.runMainApplication() {
                             controller = MonitorController.create(newConfig)
                             isSettingsOpen = false
                         },
-                        controller = controller
+                        controller = controller,
+                        scrollState = settingsScrollState,
+                        onContentHeightMeasured = resizeToContent
                     )
                 }
             }

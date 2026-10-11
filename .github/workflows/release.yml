@@ -26,14 +26,16 @@ jobs:
             label: macos-x64
           - os: windows-latest
             label: windows-x64
-          - os: ubuntu-latest
+          # Pinned rather than ubuntu-latest: jpackage takes the .deb/.rpm dependency package names from
+          # the build machine, so an older LTS keeps the packages installable on more distros.
+          - os: ubuntu-24.04
             label: linux-x64
     runs-on: ${{ matrix.os }}
     defaults:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Native installers only accept a plain MAJOR.MINOR.PATCH, and macOS requires MAJOR > 0.
       - name: Read version from tag
@@ -45,12 +47,12 @@ jobs:
           fi
           echo "APP_VERSION=$version" >> "$GITHUB_ENV"
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 21
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
 
       - name: Install rpm tooling
         if: runner.os == 'Linux'
@@ -70,7 +72,7 @@ jobs:
           done
           ls -l dist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: installers-${{ matrix.label }}
           path: dist/*
@@ -83,7 +85,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: installers-*
           merge-multiple: true

@@ -72,10 +72,11 @@ private fun WindowScope.syncTitleBarAppearance(isDark: Boolean) {
 
 /** On macOS the app is a menu-bar-only "accessory" app (no Dock icon, see main()), so it isn't the
  * active app when one of its windows opens from the menu bar - without this, the window can open
- * behind whatever app is in front. Harmless elsewhere. */
+ * behind whatever app is in front. Harmless elsewhere. Runs when the window opens, and again each
+ * time [requests] changes - so asking for an already-open window brings it forward too. */
 @Composable
-private fun WindowScope.bringToFrontOnOpen() {
-    LaunchedEffect(Unit) {
+private fun WindowScope.bringToFrontOnOpen(requests: Int = 0) {
+    LaunchedEffect(requests) {
         try {
             val desktop = java.awt.Desktop.getDesktop()
             if (desktop.isSupported(java.awt.Desktop.Action.APP_REQUEST_FOREGROUND)) {
@@ -228,6 +229,12 @@ private fun ApplicationScope.runMainApplication(startInBackground: Boolean = fal
     }
     var isSettingsOpen by remember { mutableStateOf(false) }
     var isDashboardOpen by remember { mutableStateOf(!startInBackground) }
+    // Bumped on every request to show a window, even one that's already open (where flipping
+    // isXOpen to true changes nothing) - bringToFrontOnOpen() keys on these to bring it forward.
+    var dashboardRequests by remember { mutableStateOf(0) }
+    var settingsRequests by remember { mutableStateOf(0) }
+    fun openDashboard() { isDashboardOpen = true; dashboardRequests++ }
+    fun openSettings() { isSettingsOpen = true; settingsRequests++ }
     
     val config = ConfigManager.config
     var controller by remember { mutableStateOf(MonitorController.create(config)) }
@@ -359,8 +366,8 @@ private fun ApplicationScope.runMainApplication(startInBackground: Boolean = fal
 
     if (Platform.detect() == Platform.LINUX) {
         LinuxTray(
-            onDashboardOpenChange = { isDashboardOpen = it },
-            onSettingsOpenChange = { isSettingsOpen = it },
+            onDashboardOpenChange = { if (it) openDashboard() else isDashboardOpen = false },
+            onSettingsOpenChange = { if (it) openSettings() else isSettingsOpen = false },
             presets = config.presets,
             isBusy = isBusy,
             onApplyPreset = applyPreset,
@@ -371,10 +378,10 @@ private fun ApplicationScope.runMainApplication(startInBackground: Boolean = fal
         Tray(
             icon = TrayIcon,
             state = trayState,
-            onAction = { isDashboardOpen = true },
+            onAction = { openDashboard() },
             menu = {
-                Item("Open Dashboard", onClick = { isDashboardOpen = true })
-                Item("Settings", onClick = { isSettingsOpen = true })
+                Item("Open Dashboard", onClick = { openDashboard() })
+                Item("Settings", onClick = { openSettings() })
                 Separator()
                 // Presets
                 config.presets.forEach { preset ->
@@ -425,11 +432,11 @@ private fun ApplicationScope.runMainApplication(startInBackground: Boolean = fal
         ) {
             AppTheme(themeMode = config.themeMode) { isDark ->
                 syncTitleBarAppearance(isDark)
-                bringToFrontOnOpen()
+                bringToFrontOnOpen(dashboardRequests)
                 Surface(modifier = Modifier.fillMaxSize()) {
                     if (!isToolAvailable) {
                         OnboardingWizard(
-                            onOpenSettings = { isSettingsOpen = true },
+                            onOpenSettings = { openSettings() },
                             onCheckAgain = {
                                 scope.launch {
                                     isToolAvailable = controller.isToolAvailable()
@@ -445,7 +452,7 @@ private fun ApplicationScope.runMainApplication(startInBackground: Boolean = fal
                             isBusy = isBusy,
                             config = config,
                             onConfigChange = { ConfigManager.updateConfig(it) },
-                            onSettingsClick = { isSettingsOpen = true },
+                            onSettingsClick = { openSettings() },
                             onConfirmChange = { pendingChange = null },
                             onRevertChange = {
                                 val change = pendingChange
@@ -522,7 +529,7 @@ private fun ApplicationScope.runMainApplication(startInBackground: Boolean = fal
         ) {
             AppTheme(themeMode = config.themeMode) { isDark ->
                 syncTitleBarAppearance(isDark)
-                bringToFrontOnOpen()
+                bringToFrontOnOpen(settingsRequests)
                 Surface(modifier = Modifier.fillMaxSize()) {
                     SettingsModal(
                         config = config,

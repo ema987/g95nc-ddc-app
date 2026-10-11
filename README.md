@@ -38,11 +38,21 @@ Prebuilt installers are attached to every [GitHub Release](../../releases/latest
 | Linux (portable, any distro) | `G95NC-Controller-<version>-linux-x64.tar.gz` |
 
 The portable archive is meant for immutable distros (Bazzite, Silverblue, SteamOS...) or anywhere
-you'd rather not install a package - it bundles its own Java runtime, so just extract and run:
+you'd rather not install a package. It bundles its own Java runtime and an `install.sh` that sets it
+up for your user only (no root): it asks where to put the app (default `~/Apps/G95NC-Controller`),
+adds it to your start menu, and optionally starts it on login.
 ```bash
 tar -xzf G95NC-Controller-<version>-linux-x64.tar.gz
-"./G95NC-Controller-<version>/bin/G95NC Controller"
+./G95NC-Controller-<version>/install.sh
 ```
+Afterwards, from the install folder:
+```bash
+~/Apps/G95NC-Controller/install.sh --update      # download and install the latest release
+~/Apps/G95NC-Controller/install.sh --uninstall   # remove it (keeps your settings/presets)
+```
+Running `install.sh` from a newer unpacked release also updates in place. See `install.sh --help`
+for all options. You can also skip the installer and just run
+`"./G95NC-Controller-<version>/bin/G95NC Controller"` directly.
 
 The builds are **not code-signed**. On macOS, right-click the app and choose *Open* the first time
 (or run `xattr -dr com.apple.quarantine "/Applications/G95NC Controller.app"`); on Windows,

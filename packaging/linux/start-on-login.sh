@@ -9,6 +9,7 @@
 #
 # So: wait (up to ~30s) until systemd's user environment has a DISPLAY, import it, then start the
 # app. If DISPLAY is already set (e.g. a desktop that autostarts apps directly), it starts at once.
+# The app starts with --background: just the tray icon, no dashboard window popping up at login.
 
 set -u
 
@@ -29,4 +30,4 @@ done
 
 # Start regardless: without a display it fails exactly as before, and the error lands in the
 # journal (journalctl --user -b | grep -i g95nc).
-exec "$APP_DIR/bin/G95NC Controller" "$@"
+exec "$APP_DIR/bin/G95NC Controller" --background "$@"

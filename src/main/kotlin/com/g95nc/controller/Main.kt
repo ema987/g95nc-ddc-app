@@ -70,7 +70,11 @@ private fun WindowScope.syncTitleBarAppearance(isDark: Boolean) {
     }
 }
 
-fun main() {
+/** Command-line flag to start in the tray without opening the dashboard - used by Linux autostart
+ * (start-on-login.sh), so logging in doesn't pop a window up. */
+private const val BACKGROUND_FLAG = "--background"
+
+fun main(args: Array<String>) {
     // Must be set (and the Dock icon applied) before any AWT/Swing/Compose window is created -
     // macOS otherwise shows the JVM's main class name ("MainKt") and the default Java icon for a
     // plain, unpackaged java process.
@@ -115,7 +119,7 @@ fun main() {
     }
 
     application {
-        runMainApplication()
+        runMainApplication(startInBackground = BACKGROUND_FLAG in args)
     }
 }
 
@@ -201,9 +205,9 @@ private fun ConfigWarningDialog(message: String, onDismiss: () -> Unit, themeMod
 }
 
 @Composable
-private fun ApplicationScope.runMainApplication() {
+private fun ApplicationScope.runMainApplication(startInBackground: Boolean = false) {
     var isSettingsOpen by remember { mutableStateOf(false) }
-    var isDashboardOpen by remember { mutableStateOf(true) }
+    var isDashboardOpen by remember { mutableStateOf(!startInBackground) }
     
     val config = ConfigManager.config
     var controller by remember { mutableStateOf(MonitorController.create(config)) }

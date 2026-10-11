@@ -88,15 +88,22 @@ The README screenshots are rendered off-screen from fake monitor state (no monit
 ```
 
 ## Releasing
-CI runs the tests on Linux, macOS and Windows for every push and pull request. To publish a
-release, just create a version tag - the tag is the only place the version lives (local builds show
-`dev`). Either use GitHub's **Releases -> Draft a new release**, type a new tag like `v1.1.0` and
-publish, or from the terminal:
-```bash
-git tag v1.1.0 && git push origin v1.1.0
-```
-The [Release workflow](.github/workflows/release.yml) builds the installers on each OS and attaches
-them to the GitHub Release for that tag.
+CI runs the tests on Linux, macOS and Windows for every push and pull request. Notable changes go
+under `[Unreleased]` in [CHANGELOG.md](CHANGELOG.md) as they're made.
+
+To publish a release:
+1. In `CHANGELOG.md`, rename `[Unreleased]` to the new version and date (e.g.
+   `## [1.1.0] - 2026-10-20`), add a fresh empty `[Unreleased]` above it, update the compare links
+   at the bottom, and commit.
+2. Push a matching tag - the tag is the only place the version lives (local builds show `dev`):
+   ```bash
+   git tag v1.1.0 && git push origin v1.1.0
+   ```
+
+The [Release workflow](.github/workflows/release.yml) builds the installers on each OS and publishes
+a GitHub Release for that tag, using that version's `CHANGELOG.md` section as the release notes (or
+GitHub's auto-generated notes if there is none). You can also draft the release in GitHub's UI with
+a new tag instead of step 2 - the installers get attached to it and your notes are kept.
 
 ## Architecture
 - `MonitorController`: Interface defining the core interactions.

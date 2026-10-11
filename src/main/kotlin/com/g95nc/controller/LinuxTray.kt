@@ -4,6 +4,7 @@ import androidx.compose.runtime.*
 import dorkbox.systemTray.SystemTray
 import dorkbox.systemTray.MenuItem
 import dorkbox.systemTray.Separator
+import kotlinx.coroutines.awaitCancellation
 
 @Composable
 fun LinuxTray(
@@ -35,6 +36,12 @@ fun LinuxTray(
             systemTray.shutdown()
         }
     }
+
+    // Compose's application() only keeps running while some window or effect coroutine is still
+    // active (its Recomposer is closed right after startup). Compose's own Tray counts as one, but
+    // this dorkbox tray is just a DisposableEffect - without this, the app would quit as soon as
+    // the dashboard closes, or immediately when started with --background.
+    LaunchedEffect(Unit) { awaitCancellation() }
 
     // Reactively update the menu when config presets or busy state changes
     LaunchedEffect(presets, isBusy) {

@@ -100,14 +100,27 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
+
       - uses: actions/download-artifact@v8
         with:
           pattern: installers-*
           merge-multiple: true
           path: dist
 
+      # Release notes come from this version's CHANGELOG.md section ("## [1.2.3] - date" up to the
+      # next "## ["); without one, GitHub generates notes from the commits instead.
+      - name: Extract release notes from CHANGELOG.md
+        run: |
+          awk -v v="${GITHUB_REF_NAME#v}" '
+            index($0, "## [" v "]") == 1 { found = 1; next }
+            found && (/^## \[/ || /^\[[^]]+\]: /) { exit }
+            found { print }
+          ' CHANGELOG.md | sed -e '/./,$!d' > notes.md
+          if [ -s notes.md ]; then cat notes.md; else echo "No CHANGELOG.md section for $GITHUB_REF_NAME"; fi
+
       # A release drafted in GitHub's UI already exists by the time its tag triggers this - attach
-      # to it; a plain tag push has no release yet, so create one.
+      # to it (keeping the notes written there); a plain tag push has no release yet, so create one.
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -115,6 +128,8 @@ jobs:
         run: |
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+          elif [ -s notes.md ]; then
+            gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes-file notes.md
           else
             gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes
           fi

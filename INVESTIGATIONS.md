@@ -36,7 +36,7 @@ if the high byte really is a fixed mode flag in both cases, only 8 bits are left
 (`HDMI1=0x00, HDMI2=0x01, HDMI3=0x02, DP=0x10`) as-is. Guessing a bit layout and shipping it would
 risk being confidently wrong (or, worse, making 3-way status resolution retry-until-timeout
 instead of just missing one pane) - this project's own convention (established the hard way, more
-than once this session - see the E8 audio masking fix) is to verify protocol behavior against the
+than once during development - see the E8 audio masking fix) is to verify protocol behavior against the
 real monitor rather than guess it.
 
 **What's needed to actually fix this** (requires the real monitor, so it's parked for now):
@@ -89,7 +89,7 @@ to go even higher, or the audio retry loop's write traffic may need to be reduce
 
 **This casts some doubt on the earlier-documented "monitor drops PBP, `50/50` write doesn't
 recover it" finding below** - it's now unclear whether every one of those occurrences was a real
-hardware mode change or partly this same false-read phenomenon. One occurrence in this session
+hardware mode change or partly this same false-read phenomenon. At least one observed occurrence
 *was* accompanied by the physical display actually losing signal and macOS locking the session as a
 result, which a misread status alone can't explain - so a real mode-drop mechanism likely still
 exists separately. Both are left documented until there's enough real-hardware data to tell them
@@ -145,7 +145,7 @@ channel itself failing to return trustworthy answers, independent of anything th
 
 Restarting the `BetterDisplay.app` helper (`osascript -e 'tell application "BetterDisplay" to
 quit'`, then relaunch) partially, transiently improved things but did not fully resolve the
-instability in this session. Not yet tried: a longer cooldown period with zero DDC traffic at all,
+instability during that testing. Not yet tried: a longer cooldown period with zero DDC traffic at all,
 or a physical power-cycle of the monitor.
 
 **Practical implication**: this app - and its `getvcp`/`setvcp`-based recovery via more retries -

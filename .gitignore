@@ -2,3 +2,4 @@ cli_debug.log
 build
 .gradle
 .kotlin
+resume.txt

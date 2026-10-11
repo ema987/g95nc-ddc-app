@@ -24,7 +24,7 @@ the JetBrains Runtime bundled with Android Studio doesn't include it (`checkRunt
 **`brew install openjdk@21` works but Compose Desktop actively warns against it**
 (`compose-multiplatform#3107`) - it fails `checkRuntime` with "Homebrew's JDK distribution may
 cause issues with packaging" unless you pass `-Pcompose.desktop.packaging.checkJdkVendor=false`.
-Tested with that flag this session: `packageDmg` completed and the resulting `.app` launched and
+Tested with that flag (macOS, Sep 2026): `packageDmg` completed and the resulting `.app` launched and
 ran correctly, but that's one build on one machine, not a guarantee the known issue never bites -
 worth treating a Homebrew-JDK-built artifact as fine for local testing, not as the thing you'd
 ship. For a distribution build, Compose recommends a different vendor (e.g. Amazon Corretto -

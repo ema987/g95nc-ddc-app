@@ -67,3 +67,11 @@ codes, HDMI 3 confirmation, and a 3-way settle-delay TODO) have moved to
 - **Keyboard shortcuts** for common actions (layout/source switching, presets). Not yet
   implemented - still needs a decision on scope (global tray-level shortcuts vs. just within the
   open dashboard window) before it's worth picking a shortcut scheme.
+
+## Credits
+The DDC/CI protocol details this app relies on (VCP codes, PBP layouts, source values) come from
+the reverse-engineering work in [g95nc-ddc](https://github.com/mwd102/g95nc-ddc) by Michael Dobson,
+licensed under MIT. Thanks for doing the hard part!
+
+## License
+[MIT](LICENSE) - includes the upstream g95nc-ddc license notice.

@@ -206,6 +206,15 @@ private fun ConfigWarningDialog(message: String, onDismiss: () -> Unit, themeMod
 
 @Composable
 private fun ApplicationScope.runMainApplication(startInBackground: Boolean = false) {
+    val macLoginItem = remember { if (Platform.detect() == Platform.MAC) MacLoginItem() else null }
+    // If start-at-login is on but the app was moved since, point it at the new location.
+    LaunchedEffect(macLoginItem) {
+        try {
+            macLoginItem?.refresh()
+        } catch (e: Exception) {
+            // Best effort - the Settings toggle surfaces real write failures.
+        }
+    }
     var isSettingsOpen by remember { mutableStateOf(false) }
     var isDashboardOpen by remember { mutableStateOf(!startInBackground) }
     
@@ -509,7 +518,8 @@ private fun ApplicationScope.runMainApplication(startInBackground: Boolean = fal
                             controller = MonitorController.create(newConfig)
                             isSettingsOpen = false
                         },
-                        controller = controller
+                        controller = controller,
+                        loginItem = macLoginItem
                     )
                 }
             }

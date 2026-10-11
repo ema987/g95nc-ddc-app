@@ -571,11 +571,16 @@ fun SettingsModal(
     onSave: (AppConfig) -> Unit,
     controller: MonitorController,
     commandRunner: CommandRunner = ProcessUtils,
-    platform: Platform = Platform.detect()
+    platform: Platform = Platform.detect(),
+    // Null (or unsupported, e.g. not a packaged .app) hides the "Start at login" option.
+    loginItem: MacLoginItem? = null
 ) {
     var ddcPath by remember { mutableStateOf(config.ddcutilPath) }
     var bdPath by remember { mutableStateOf(config.betterdisplaycliPath) }
     var enableCountdown by remember { mutableStateOf(config.enableSafetyCountdown) }
+    val showStartAtLogin = platform == Platform.MAC && loginItem?.isSupported == true
+    var startAtLogin by remember { mutableStateOf(loginItem?.isEnabled == true) }
+    var startAtLoginError by remember { mutableStateOf<String?>(null) }
     var themeMode by remember { mutableStateOf(config.themeMode) }
     var expandedTheme by remember { mutableStateOf(false) }
     var ddcTestResult by remember { mutableStateOf<Boolean?>(null) }
@@ -690,6 +695,22 @@ fun SettingsModal(
             Text("Enable Safety Countdown (auto-revert changes)")
         }
 
+        // macOS only: Linux autostart is set up by install.sh, and Windows has none yet.
+        if (showStartAtLogin) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = startAtLogin,
+                    onCheckedChange = { startAtLogin = it; startAtLoginError = null },
+                    modifier = Modifier.testTag("startAtLoginCheckbox")
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Start at login (in the menu bar, without opening this window)")
+            }
+            startAtLoginError?.let {
+                Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+            }
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
         DebugInfoSection(controller)
 
@@ -714,7 +735,17 @@ fun SettingsModal(
             }
             Button(
                 enabled = canSave,
-                onClick = {
+                onClick = save@{
+                    // Applied directly (it's a LaunchAgent file, not part of AppConfig). If it can't
+                    // be written, stay open with the error rather than silently not starting at login.
+                    if (showStartAtLogin && startAtLogin != loginItem!!.isEnabled) {
+                        try {
+                            loginItem.setEnabled(startAtLogin)
+                        } catch (e: Exception) {
+                            startAtLoginError = "Couldn't update start at login: ${e.message}"
+                            return@save
+                        }
+                    }
                     onSave(config.copy(
                         ddcutilPath = ddcPath,
                         betterdisplaycliPath = bdPath,

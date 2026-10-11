@@ -22,6 +22,8 @@ This app is a frontend and extension of the reverse-engineered scripts from the 
 - **Cross-Platform**: Runs on Windows, Linux, and macOS.
 - **System Tray / Menu Bar**: Lives in the tray for quick access.
 - **Presets**: Save and quickly apply your favorite layout and source combinations with one click.
+- **Start at login**: Quietly in the tray/menu bar - a Settings option on macOS, an `install.sh`
+  option on Linux (portable build).
 - **Standalone on Windows**: Uses JNA to bind directly to the Win32 `dxva2.dll` API — no Python or vendor software required.
 - **Linux & macOS**: Seamlessly integrates with `ddcutil` and `betterdisplaycli`.
 

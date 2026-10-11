@@ -13,11 +13,14 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import org.junit.Rule
 import org.junit.Test
+import kotlin.io.path.createTempDirectory
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class SettingsModalUiTest {
 
@@ -228,5 +231,53 @@ class SettingsModalUiTest {
         composeRule.onNodeWithText("E2 (Layout): 0x39").assertIsDisplayed()
         composeRule.onNodeWithText("E8 (Audio source): 0x01").assertIsDisplayed()
         composeRule.onNodeWithText("ED (Unknown): read failed").assertIsDisplayed()
+    }
+
+    private fun macLoginItem() = MacLoginItem(
+        launchAgentsDir = createTempDirectory("g95nc-launchagents").toFile(),
+        appExecutable = "/Applications/G95NC Controller.app/Contents/MacOS/G95NC Controller"
+    )
+
+    private fun setSettings(platform: Platform, loginItem: MacLoginItem?, onSave: (AppConfig) -> Unit = {}) {
+        composeRule.setContent {
+            AppTheme(themeMode = ThemeMode.DARK) {
+                SettingsModal(config = AppConfig(), onSave = onSave, controller = FakeMonitorController(), platform = platform, loginItem = loginItem)
+            }
+        }
+    }
+
+    @Test
+    fun testStartAtLogin_checkingAndSavingEnablesTheLoginItemOnMac() {
+        val loginItem = macLoginItem()
+        var saved = false
+        setSettings(Platform.MAC, loginItem) { saved = true }
+
+        composeRule.onNodeWithTag("startAtLoginCheckbox").performScrollTo().performClick()
+        composeRule.onNodeWithText("Save Configuration").performScrollTo().performClick()
+
+        assertTrue(loginItem.isEnabled)
+        assertTrue(saved)
+        loginItem.plistFile.parentFile.deleteRecursively()
+    }
+
+    @Test
+    fun testStartAtLogin_isHiddenOnLinux() {
+        setSettings(Platform.LINUX, macLoginItem())
+
+        composeRule.onNodeWithTag("startAtLoginCheckbox").assertDoesNotExist()
+    }
+
+    @Test
+    fun testStartAtLogin_isHiddenOnWindows() {
+        setSettings(Platform.WINDOWS, macLoginItem())
+
+        composeRule.onNodeWithTag("startAtLoginCheckbox").assertDoesNotExist()
+    }
+
+    @Test
+    fun testStartAtLogin_isHiddenOnMacWhenNotRunningFromAnAppBundle() {
+        setSettings(Platform.MAC, MacLoginItem(appExecutable = null))
+
+        composeRule.onNodeWithTag("startAtLoginCheckbox").assertDoesNotExist()
     }
 }

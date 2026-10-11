@@ -1,0 +1,96 @@
+name: Release
+
+# Push a tag like v1.0.0 to build installers for every OS and publish them as a GitHub Release.
+# The tag must match appVersion in build.gradle.kts (and AppInfo.VERSION) - bump those first.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  package:
+    name: Package (${{ matrix.label }})
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macos-arm64
+          - os: macos-15-intel
+            label: macos-x64
+          - os: windows-latest
+            label: windows-x64
+          - os: ubuntu-latest
+            label: linux-x64
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tag matches app version
+        shell: bash
+        run: |
+          gradle_version=$(sed -n 's/^val appVersion = "\(.*\)"/\1/p' build.gradle.kts)
+          kotlin_version=$(sed -n 's/.*const val VERSION = "\(.*\)"/\1/p' src/main/kotlin/com/g95nc/controller/AppInfo.kt)
+          tag_version="${GITHUB_REF_NAME#v}"
+          if [ "$tag_version" != "$gradle_version" ] || [ "$tag_version" != "$kotlin_version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match build.gradle.kts ($gradle_version) / AppInfo.kt ($kotlin_version)"
+            exit 1
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install rpm tooling
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y rpm
+
+      - name: Build installers
+        run: ./gradlew packageDistributionForCurrentOS --console=plain
+
+      # Every runner names its output "G95NC Controller-<version>.<ext>", so the two macOS builds
+      # would collide - rename to a URL-friendly name that also says which OS/arch it's for.
+      - name: Collect installers
+        shell: bash
+        run: |
+          mkdir dist
+          find build/compose/binaries/main -type f \( -name '*.dmg' -o -name '*.msi' -o -name '*.deb' -o -name '*.rpm' \) | while read -r f; do
+            cp "$f" "dist/G95NC-Controller-${GITHUB_REF_NAME#v}-${{ matrix.label }}.${f##*.}"
+          done
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.label }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installers-*
+          merge-multiple: true
+          path: dist
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes

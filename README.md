@@ -2,7 +2,21 @@
 
 A lightweight, standalone Desktop application built with Kotlin and Compose Multiplatform to control the Samsung Odyssey G95NC monitor (PBP layouts, inputs, and audio sources) across Windows, Linux, and macOS.
 
-This app is a frontend and extension of the reverse-engineered scripts from the [g95nc-ddc](https://github.com/mwd102/g95nc-ddc) repository. 
+This app is a frontend and extension of the reverse-engineered scripts from the [g95nc-ddc](https://github.com/mwd102/g95nc-ddc) repository.
+
+> [!WARNING]
+> **Experimental and vibe-coded.** This app was built largely with AI assistance ([Claude Code](https://claude.com/claude-code)) as a personal project. It works on my setup, but it sends raw DDC/CI commands to your monitor - use it at your own risk, and expect rough edges.
+
+> [!NOTE]
+> **Windows is untested.** The Windows build (native DXVA2 backend and `.msi` installer) has never been run on real Windows hardware. It may work; it may not. Reports and fixes are very welcome.
+
+<p align="center">
+  <img src="docs/screenshots/dashboard-dark.png" alt="Dashboard (dark theme)" width="420">
+  <img src="docs/screenshots/dashboard-light.png" alt="Dashboard (light theme)" width="420">
+</p>
+<p align="center">
+  <img src="docs/screenshots/settings-dark.png" alt="Settings" width="360">
+</p>
 
 ## Features
 - **Cross-Platform**: Runs on Windows, Linux, and macOS.
@@ -10,6 +24,21 @@ This app is a frontend and extension of the reverse-engineered scripts from the 
 - **Presets**: Save and quickly apply your favorite layout and source combinations with one click.
 - **Standalone on Windows**: Uses JNA to bind directly to the Win32 `dxva2.dll` API — no Python or vendor software required.
 - **Linux & macOS**: Seamlessly integrates with `ddcutil` and `betterdisplaycli`.
+
+## Download
+Prebuilt installers are attached to every [GitHub Release](../../releases/latest):
+
+| OS | File |
+|---|---|
+| macOS (Apple Silicon) | `G95NC-Controller-<version>-macos-arm64.dmg` |
+| macOS (Intel) | `G95NC-Controller-<version>-macos-x64.dmg` |
+| Windows (untested) | `G95NC-Controller-<version>-windows-x64.msi` |
+| Linux (Debian/Ubuntu) | `G95NC-Controller-<version>-linux-x64.deb` |
+| Linux (Fedora/openSUSE) | `G95NC-Controller-<version>-linux-x64.rpm` |
+
+The builds are **not code-signed**. On macOS, right-click the app and choose *Open* the first time
+(or run `xattr -dr com.apple.quarantine "/Applications/G95NC Controller.app"`); on Windows,
+SmartScreen will ask you to confirm under *More info -> Run anyway*.
 
 ## Requirements
 - **Windows**: No external requirements.
@@ -29,6 +58,26 @@ To package a standalone executable/installer for your current OS:
 ./gradlew package
 ```
 (This will output to `build/compose/binaries/main/`)
+
+To run the tests:
+```bash
+./gradlew test
+```
+
+The README screenshots are rendered off-screen from fake monitor state (no monitor needed):
+```bash
+./gradlew test --tests '*ScreenshotGenerator*' -PscreenshotsDir=docs/screenshots
+```
+
+## Releasing
+CI runs the tests on Linux, macOS and Windows for every push and pull request. To publish a
+release, bump `appVersion` in `build.gradle.kts` and `AppInfo.VERSION` to the same value, commit,
+then push a matching tag:
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+The [Release workflow](.github/workflows/release.yml) builds the installers on each OS and attaches
+them to a new GitHub Release.
 
 ## Architecture
 - `MonitorController`: Interface defining the core interactions.

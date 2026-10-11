@@ -51,7 +51,7 @@ compose.desktop {
     application {
         mainClass = "com.g95nc.controller.MainKt"
         nativeDistributions {
-            targetFormats(org.jetbrains.compose.desktop.application.dsl.TargetFormat.Dmg, org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi, org.jetbrains.compose.desktop.application.dsl.TargetFormat.Deb)
+            targetFormats(org.jetbrains.compose.desktop.application.dsl.TargetFormat.Dmg, org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi, org.jetbrains.compose.desktop.application.dsl.TargetFormat.Deb, org.jetbrains.compose.desktop.application.dsl.TargetFormat.Rpm)
             // This becomes jpackage's --name: the actual .app bundle folder name (which is what
             // Finder/Spotlight/Dock display - CFBundleDisplayName does NOT override it, despite
             // documentation suggesting otherwise; confirmed by inspecting the real jpackage
@@ -79,6 +79,12 @@ compose.desktop {
             }
             windows {
                 iconFile.set(project.file("packaging/icon.ico"))
+                // Without these jpackage installs the app with no Start Menu entry at all.
+                menu = true
+                shortcut = true
+                // Fixed forever so installing a newer .msi upgrades in place instead of adding a
+                // second copy side by side - never change this once releases are out.
+                upgradeUuid = "DF280EEE-7857-4C74-B246-F13039666607"
             }
             // Untested on an actual Windows machine (built here on macOS with ImageMagick, no
             // Windows box available) - see packaging/README.md.
@@ -89,3 +95,13 @@ compose.desktop {
 kotlin {
     jvmToolchain(21)
 }
+
+// Lets ScreenshotGenerator (skipped otherwise) know where to write the README screenshots:
+// ./gradlew test --tests '*ScreenshotGenerator*' -PscreenshotsDir=docs/screenshots
+tasks.test {
+    providers.gradleProperty("screenshotsDir").orNull?.let {
+        systemProperty("screenshotsDir", project.file(it).absolutePath)
+        outputs.upToDateWhen { false }
+    }
+}
+

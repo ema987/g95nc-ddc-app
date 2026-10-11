@@ -17,6 +17,8 @@ import androidx.compose.ui.window.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeoutOrNull
 
 private val singleInstanceLock = SingleInstanceLock(
     java.io.File(System.getProperty("user.home"), ".config/g95nc-controller/app.lock")
@@ -25,6 +27,14 @@ private val singleInstanceLock = SingleInstanceLock(
 // Set by the tray / menu bar menu's "About" item - the only way to reach it on every OS, since the
 // app has no macOS app menu (it runs as a menu-bar-only accessory app there, see main()).
 private var showAboutDialog by mutableStateOf(false)
+// Bumped on every About click, like the dashboard/settings request counters in
+// runMainApplication(), so clicking About again brings an already-open About window forward.
+private var aboutRequests by mutableStateOf(0)
+
+private fun openAbout() {
+    showAboutDialog = true
+    aboutRequests++
+}
 
 /** Caps a desired window height to the actual screen so it's never taller than the viewport on a
  * small display; anything beyond that is still reachable via the window's scrollable content. */
@@ -73,14 +83,31 @@ private fun WindowScope.syncTitleBarAppearance(isDark: Boolean) {
 /** On macOS the app is a menu-bar-only "accessory" app (no Dock icon, see main()), so it isn't the
  * active app when one of its windows opens from the menu bar - without this, the window can open
  * behind whatever app is in front. Harmless elsewhere. Runs when the window opens, and again each
- * time [requests] changes - so asking for an already-open window brings it forward too. */
+ * time [requests] changes - so asking for an already-open window brings it forward too.
+ *
+ * Activating the app is asynchronous, and when it lands macOS raises the app's main window (e.g.
+ * the dashboard) - so raising this window right away would get covered again. If the app isn't
+ * active yet, wait for macOS to report it raised (or give up after a second), then raise this one. */
 @Composable
 private fun WindowScope.bringToFrontOnOpen(requests: Int = 0) {
     LaunchedEffect(requests) {
         try {
             val desktop = java.awt.Desktop.getDesktop()
-            if (desktop.isSupported(java.awt.Desktop.Action.APP_REQUEST_FOREGROUND)) {
-                desktop.requestForeground(true)
+            val appIsActive = java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().activeWindow != null
+            if (!appIsActive && desktop.isSupported(java.awt.Desktop.Action.APP_REQUEST_FOREGROUND)) {
+                val raised = CompletableDeferred<Unit>()
+                val listener = object : java.awt.desktop.AppForegroundListener {
+                    override fun appRaisedToForeground(e: java.awt.desktop.AppForegroundEvent) { raised.complete(Unit) }
+                    override fun appMovedToBackground(e: java.awt.desktop.AppForegroundEvent) {}
+                }
+                val canListen = desktop.isSupported(java.awt.Desktop.Action.APP_EVENT_FOREGROUND)
+                if (canListen) desktop.addAppEventListener(listener)
+                try {
+                    desktop.requestForeground(true)
+                    if (canListen) withTimeoutOrNull(1000) { raised.await() }
+                } finally {
+                    if (canListen) desktop.removeAppEventListener(listener)
+                }
             }
         } catch (e: Exception) {
             // Best effort - toFront() below still covers most cases.
@@ -149,7 +176,7 @@ fun main(args: Array<String>) {
 }
 
 @Composable
-private fun AboutDialog(onDismiss: () -> Unit, themeMode: ThemeMode) {
+private fun AboutDialog(onDismiss: () -> Unit, themeMode: ThemeMode, requests: Int) {
     Window(
         onCloseRequest = onDismiss,
         title = "About ${AppInfo.NAME}",
@@ -159,7 +186,7 @@ private fun AboutDialog(onDismiss: () -> Unit, themeMode: ThemeMode) {
     ) {
         AppTheme(themeMode = themeMode) { isDark ->
             syncTitleBarAppearance(isDark)
-            bringToFrontOnOpen()
+            bringToFrontOnOpen(requests)
             Surface(modifier = Modifier.fillMaxSize()) {
                 Column(
                     modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -371,7 +398,7 @@ private fun ApplicationScope.runMainApplication(startInBackground: Boolean = fal
             presets = config.presets,
             isBusy = isBusy,
             onApplyPreset = applyPreset,
-            onAboutClick = { showAboutDialog = true },
+            onAboutClick = { openAbout() },
             onQuit = ::exitApplication
         )
     } else {
@@ -388,7 +415,7 @@ private fun ApplicationScope.runMainApplication(startInBackground: Boolean = fal
                     Item("Preset: ${preset.name}", onClick = { applyPreset(preset) })
                 }
                 Separator()
-                Item("About", onClick = { showAboutDialog = true })
+                Item("About", onClick = { openAbout() })
                 Item("Quit", onClick = ::exitApplication)
             }
         )
@@ -547,7 +574,7 @@ private fun ApplicationScope.runMainApplication(startInBackground: Boolean = fal
     }
 
     if (showAboutDialog) {
-        AboutDialog(onDismiss = { showAboutDialog = false }, themeMode = config.themeMode)
+        AboutDialog(onDismiss = { showAboutDialog = false }, themeMode = config.themeMode, requests = aboutRequests)
     }
 
     ConfigManager.loadWarning?.let { warning ->

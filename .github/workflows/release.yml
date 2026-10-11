@@ -1,7 +1,7 @@
 name: Release
 
-# Push a tag like v1.0.0 to build installers for every OS and publish them as a GitHub Release.
-# The tag must match appVersion in build.gradle.kts (and AppInfo.VERSION) - bump those first.
+# Push a tag like v1.2.3 (or publish a release with a new tag from GitHub's UI) to build installers
+# for every OS and attach them to that GitHub Release. The tag is the only source of the version.
 on:
   push:
     tags: ['v*']
@@ -35,16 +35,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check tag matches app version
-        shell: bash
+      # Native installers only accept a plain MAJOR.MINOR.PATCH, and macOS requires MAJOR > 0.
+      - name: Read version from tag
         run: |
-          gradle_version=$(sed -n 's/^val appVersion = "\(.*\)"/\1/p' build.gradle.kts)
-          kotlin_version=$(sed -n 's/.*const val VERSION = "\(.*\)"/\1/p' src/main/kotlin/com/g95nc/controller/AppInfo.kt)
-          tag_version="${GITHUB_REF_NAME#v}"
-          if [ "$tag_version" != "$gradle_version" ] || [ "$tag_version" != "$kotlin_version" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME doesn't match build.gradle.kts ($gradle_version) / AppInfo.kt ($kotlin_version)"
+          version="${GITHUB_REF_NAME#v}"
+          if ! [[ "$version" =~ ^[1-9][0-9]*\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME must look like v1.2.3 (MAJOR > 0)"
             exit 1
           fi
+          echo "APP_VERSION=$version" >> "$GITHUB_ENV"
 
       - uses: actions/setup-java@v4
         with:
@@ -58,7 +57,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y rpm
 
       - name: Build installers
-        run: ./gradlew packageDistributionForCurrentOS --console=plain
+        run: ./gradlew packageDistributionForCurrentOS -PappVersion="$APP_VERSION" --console=plain
 
       # Every runner names its output "G95NC Controller-<version>.<ext>", so the two macOS builds
       # would collide - rename to a URL-friendly name that also says which OS/arch it's for.
@@ -67,7 +66,7 @@ jobs:
         run: |
           mkdir dist
           find build/compose/binaries/main -type f \( -name '*.dmg' -o -name '*.msi' -o -name '*.deb' -o -name '*.rpm' \) | while read -r f; do
-            cp "$f" "dist/G95NC-Controller-${GITHUB_REF_NAME#v}-${{ matrix.label }}.${f##*.}"
+            cp "$f" "dist/G95NC-Controller-$APP_VERSION-${{ matrix.label }}.${f##*.}"
           done
           ls -l dist
 
@@ -90,7 +89,15 @@ jobs:
           merge-multiple: true
           path: dist
 
-      - name: Create GitHub Release
+      # A release drafted in GitHub's UI already exists by the time its tag triggers this - attach
+      # to it; a plain tag push has no release yet, so create one.
+      - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes
+          fi

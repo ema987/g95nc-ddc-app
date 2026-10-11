@@ -131,6 +131,9 @@ class ProcessUtilsTest {
 
     @Test
     fun testResolveExecutable_ignoresANonExecutableFileWithTheSameName() {
+        // Windows has no executable bit - File.canExecute() is true for any readable file there.
+        if (isWindows()) return
+
         val tempDir = kotlin.io.path.createTempDirectory("g95nc-resolve-test").toFile()
         try {
             val notExecutable = java.io.File(tempDir, "probe")

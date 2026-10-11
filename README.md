@@ -71,13 +71,14 @@ The README screenshots are rendered off-screen from fake monitor state (no monit
 
 ## Releasing
 CI runs the tests on Linux, macOS and Windows for every push and pull request. To publish a
-release, bump `appVersion` in `build.gradle.kts` and `AppInfo.VERSION` to the same value, commit,
-then push a matching tag:
+release, just create a version tag - the tag is the only place the version lives (local builds show
+`dev`). Either use GitHub's **Releases -> Draft a new release**, type a new tag like `v1.1.0` and
+publish, or from the terminal:
 ```bash
-git tag v1.0.0 && git push origin v1.0.0
+git tag v1.1.0 && git push origin v1.1.0
 ```
 The [Release workflow](.github/workflows/release.yml) builds the installers on each OS and attaches
-them to a new GitHub Release.
+them to the GitHub Release for that tag.
 
 ## Architecture
 - `MonitorController`: Interface defining the core interactions.

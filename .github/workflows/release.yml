@@ -77,6 +77,7 @@ jobs:
       - name: Collect portable Linux archive
         if: runner.os == 'Linux'
         run: |
+          ./gradlew createDistributable -PappVersion="$APP_VERSION" --console=plain
           tar -C build/compose/binaries/main/app \
             --transform "s|^G95NC Controller|G95NC-Controller-$APP_VERSION|" \
             -czf "dist/G95NC-Controller-$APP_VERSION-${{ matrix.label }}.tar.gz" "G95NC Controller"

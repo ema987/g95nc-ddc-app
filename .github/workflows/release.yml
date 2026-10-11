@@ -81,7 +81,7 @@ jobs:
           tar -C build/compose/binaries/main/app \
             --transform "s|^G95NC Controller|G95NC-Controller-$APP_VERSION|" \
             -czf "dist/G95NC-Controller-$APP_VERSION-${{ matrix.label }}.tar.gz" "G95NC Controller"
-          tar -tzf "dist/G95NC-Controller-$APP_VERSION-${{ matrix.label }}.tar.gz" | grep -q '/lib/libapplauncher.so$'
+          tar -tzf "dist/G95NC-Controller-$APP_VERSION-${{ matrix.label }}.tar.gz" | grep '/lib/libapplauncher.so$' > /dev/null
           ls -l dist
 
       - uses: actions/upload-artifact@v7

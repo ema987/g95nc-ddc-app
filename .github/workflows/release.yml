@@ -72,6 +72,17 @@ jobs:
           done
           ls -l dist
 
+      # Portable build for distros that can't (easily) install .deb/.rpm, e.g. immutable ones like
+      # Bazzite/Silverblue/SteamOS: the same self-contained app folder the packages are made from.
+      - name: Collect portable Linux archive
+        if: runner.os == 'Linux'
+        run: |
+          tar -C build/compose/binaries/main/app \
+            --transform "s|^G95NC Controller|G95NC-Controller-$APP_VERSION|" \
+            -czf "dist/G95NC-Controller-$APP_VERSION-${{ matrix.label }}.tar.gz" "G95NC Controller"
+          tar -tzf "dist/G95NC-Controller-$APP_VERSION-${{ matrix.label }}.tar.gz" | grep -q '/lib/libapplauncher.so$'
+          ls -l dist
+
       - uses: actions/upload-artifact@v7
         with:
           name: installers-${{ matrix.label }}

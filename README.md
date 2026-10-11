@@ -35,6 +35,14 @@ Prebuilt installers are attached to every [GitHub Release](../../releases/latest
 | Windows (untested) | `G95NC-Controller-<version>-windows-x64.msi` |
 | Linux (Debian/Ubuntu) | `G95NC-Controller-<version>-linux-x64.deb` |
 | Linux (Fedora/openSUSE) | `G95NC-Controller-<version>-linux-x64.rpm` |
+| Linux (portable, any distro) | `G95NC-Controller-<version>-linux-x64.tar.gz` |
+
+The portable archive is meant for immutable distros (Bazzite, Silverblue, SteamOS...) or anywhere
+you'd rather not install a package - it bundles its own Java runtime, so just extract and run:
+```bash
+tar -xzf G95NC-Controller-<version>-linux-x64.tar.gz
+"./G95NC-Controller-<version>/bin/G95NC Controller"
+```
 
 The builds are **not code-signed**. On macOS, right-click the app and choose *Open* the first time
 (or run `xattr -dr com.apple.quarantine "/Applications/G95NC Controller.app"`); on Windows,

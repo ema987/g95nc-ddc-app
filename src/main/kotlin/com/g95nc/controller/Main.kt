@@ -23,7 +23,8 @@ private val singleInstanceLock = SingleInstanceLock(
 )
 
 // Set by the macOS "About G95NC Controller" menu item's handler (registered in main(), fires on
-// an AWT/AppKit callback outside Compose's composition) so runMainApplication() can show it.
+// an AWT/AppKit callback outside Compose's composition) so runMainApplication() can show it, and
+// by the tray menus' "About" item - the only way to reach it on Linux/Windows, which have no app menu.
 private var showAboutDialog by mutableStateOf(false)
 
 /** Caps a desired window height to the actual screen so it's never taller than the viewport on a
@@ -339,6 +340,7 @@ private fun ApplicationScope.runMainApplication() {
             presets = config.presets,
             isBusy = isBusy,
             onApplyPreset = applyPreset,
+            onAboutClick = { showAboutDialog = true },
             onQuit = ::exitApplication
         )
     } else {
@@ -355,6 +357,7 @@ private fun ApplicationScope.runMainApplication() {
                     Item("Preset: ${preset.name}", onClick = { applyPreset(preset) })
                 }
                 Separator()
+                Item("About", onClick = { showAboutDialog = true })
                 Item("Quit", onClick = ::exitApplication)
             }
         )

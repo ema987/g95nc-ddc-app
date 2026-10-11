@@ -12,6 +12,7 @@ fun LinuxTray(
     presets: List<Preset>,
     isBusy: Boolean,
     onApplyPreset: (Preset) -> Unit,
+    onAboutClick: () -> Unit,
     onQuit: () -> Unit
 ) {
     DisposableEffect(Unit) {
@@ -63,6 +64,9 @@ fun LinuxTray(
         }
         
         menu.add(Separator())
+        menu.add(MenuItem("About") {
+            onAboutClick()
+        })
         menu.add(MenuItem("Quit") {
             onQuit()
         })

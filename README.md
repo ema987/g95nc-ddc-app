@@ -5,7 +5,7 @@ A lightweight, standalone Desktop application built with Kotlin and Compose Mult
 This app is a frontend and extension of the reverse-engineered scripts from the [g95nc-ddc](https://github.com/mwd102/g95nc-ddc) repository.
 
 > [!WARNING]
-> **Experimental and vibe-coded.** This app was built largely with AI assistance ([Claude Code](https://claude.com/claude-code)) as a personal project. It works on my setup, but it sends raw DDC/CI commands to your monitor - use it at your own risk, and expect rough edges.
+> **Experimental and vibe-coded.** This app was built largely with AI assistance ([Claude Code](https://claude.com/claude-code) and [Antigravity](https://antigravity.google/)/Gemini) as a personal project. It works on my setup, but it sends raw DDC/CI commands to your monitor - use it at your own risk, and expect rough edges.
 
 > [!NOTE]
 > **Windows is untested.** The Windows build (native DXVA2 backend and `.msi` installer) has never been run on real Windows hardware. It may work; it may not. Reports and fixes are very welcome.

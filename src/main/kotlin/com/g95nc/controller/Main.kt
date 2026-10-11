@@ -46,12 +46,13 @@ private fun capToScreenHeight(desired: Dp): Dp {
 private fun preferredDashboardHeight(): Dp = capToScreenHeight(700.dp)
 
 /** A height that comfortably fits the Settings content (path field(s) + appearance + safety
- * countdown checkbox + collapsed debug toggle + Save button) with a little breathing room below
+ * countdown checkbox + macOS's start-at-login checkbox + collapsed debug toggle + Save button -
+ * ~496dp of content on macOS, the tallest case) with a little breathing room below
  * the Save button - tuned by hand against the actual UI, not measured at runtime (an
  * intrinsic-measurement-based auto-size was tried and worked on the dev machine but not on
  * another, so this is a plain constant instead). Bump this if Settings grows a new field/section;
  * anything beyond it is still reachable via the window's scrollable content. */
-private fun preferredSettingsHeight(): Dp = capToScreenHeight(520.dp)
+private fun preferredSettingsHeight(): Dp = capToScreenHeight(570.dp)
 
 /** macOS draws each window's title bar chrome itself, entirely outside Compose - without this
  * hint it just follows the OS's own current appearance regardless of what [AppTheme] resolved to,

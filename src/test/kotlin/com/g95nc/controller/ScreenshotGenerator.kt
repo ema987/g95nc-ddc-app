@@ -84,10 +84,16 @@ class ScreenshotGenerator {
     fun dashboardLight() = capture("dashboard-light", 680, 780) { DashboardShot(ThemeMode.LIGHT) }
 
     @Test
-    fun settingsDark() = capture("settings-dark", 500, 450) {
+    fun settingsDark() = capture("settings-dark", 500, 500) {
+        // A fake .app path just so the macOS-only "Start at login" option shows, and an empty temp
+        // folder so it doesn't reflect whether the machine generating this has it enabled.
+        val loginItem = MacLoginItem(
+            launchAgentsDir = kotlin.io.path.createTempDirectory("g95nc-screenshot").toFile(),
+            appExecutable = "/Applications/G95NC Controller.app/Contents/MacOS/G95NC Controller"
+        )
         AppTheme(themeMode = ThemeMode.DARK) {
             Surface(modifier = Modifier.fillMaxSize()) {
-                SettingsModal(config = AppConfig(), onSave = {}, controller = FakeMonitorController(), platform = Platform.MAC)
+                SettingsModal(config = AppConfig(), onSave = {}, controller = FakeMonitorController(), platform = Platform.MAC, loginItem = loginItem)
             }
         }
     }

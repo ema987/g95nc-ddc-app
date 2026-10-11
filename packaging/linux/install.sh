@@ -31,7 +31,8 @@
 #   ~/.local/share/applications/g95nc-controller.desktop   start menu entry (also how this
 #                                                          script remembers the install folder)
 #   ~/.local/share/icons/g95nc-controller.png              start menu icon
-#   ~/.config/autostart/g95nc-controller.desktop           only if you opted into autostart
+#   ~/.config/autostart/g95nc-controller.desktop           only if you opted into autostart (runs
+#                                                          start-on-login.sh - see that file)
 
 set -euo pipefail
 
@@ -124,9 +125,9 @@ ensure_not_running() {
     fi
 }
 
-# Writes a .desktop file. Exec is quoted because the launcher's filename contains a space.
-# StartupWMClass is the window class Java derives from the main class, so the desktop can match
-# the app's window to this entry (right icon in the taskbar/dock).
+# Writes a .desktop file ($1) that runs $2. Exec is quoted because the launcher's filename contains
+# a space. StartupWMClass is the window class Java derives from the main class, so the desktop can
+# match the app's window to this entry (right icon in the taskbar/dock).
 write_desktop_file() {
     mkdir -p "$(dirname "$1")"
     cat > "$1" <<EOF
@@ -134,12 +135,18 @@ write_desktop_file() {
 Type=Application
 Name=$APP_NAME
 Comment=Control Samsung Odyssey G95NC layouts, inputs and audio
-Exec="$INSTALL_DIR/bin/$APP_NAME"
+Exec="$2"
 Icon=$ICON_FILE
 Categories=Utility;Settings;
 Terminal=false
 StartupWMClass=com-g95nc-controller-MainKt
 EOF
+}
+
+# Autostart goes through start-on-login.sh, which waits for the display to be ready at login -
+# starting the app directly can race the desktop and crash it (see that script).
+write_autostart_file() {
+    write_desktop_file "$AUTOSTART_FILE" "$INSTALL_DIR/start-on-login.sh"
 }
 
 # Some desktops only pick up new entries after their cache is refreshed; harmless if missing.
@@ -184,7 +191,7 @@ do_install() {
 
     mkdir -p "$(dirname "$ICON_FILE")"
     cp "$INSTALL_DIR/lib/$APP_NAME.png" "$ICON_FILE"
-    write_desktop_file "$DESKTOP_FILE"
+    write_desktop_file "$DESKTOP_FILE" "$INSTALL_DIR/bin/$APP_NAME"
     refresh_menu
 
     # Autostart: an explicit flag wins; otherwise ask, but only on a terminal. Without one (e.g.
@@ -199,9 +206,9 @@ do_install() {
         esac
     fi
     case "$autostart_choice" in
-        yes) write_desktop_file "$AUTOSTART_FILE" ;;
+        yes) write_autostart_file ;;
         no) rm -f "$AUTOSTART_FILE" ;;
-        *) if [ -f "$AUTOSTART_FILE" ]; then write_desktop_file "$AUTOSTART_FILE"; fi ;; # refresh, keep as-is
+        *) if [ -f "$AUTOSTART_FILE" ]; then write_autostart_file; fi ;; # refresh, keep as-is
     esac
 
     if [ -n "$old_version" ] && [ "$old_version" != "$new_version" ]; then

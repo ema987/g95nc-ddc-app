@@ -22,9 +22,8 @@ private val singleInstanceLock = SingleInstanceLock(
     java.io.File(System.getProperty("user.home"), ".config/g95nc-controller/app.lock")
 )
 
-// Set by the macOS "About G95NC Controller" menu item's handler (registered in main(), fires on
-// an AWT/AppKit callback outside Compose's composition) so runMainApplication() can show it, and
-// by the tray menus' "About" item - the only way to reach it on Linux/Windows, which have no app menu.
+// Set by the tray / menu bar menu's "About" item - the only way to reach it on every OS, since the
+// app has no macOS app menu (it runs as a menu-bar-only accessory app there, see main()).
 private var showAboutDialog by mutableStateOf(false)
 
 /** Caps a desired window height to the actual screen so it's never taller than the viewport on a
@@ -71,6 +70,25 @@ private fun WindowScope.syncTitleBarAppearance(isDark: Boolean) {
     }
 }
 
+/** On macOS the app is a menu-bar-only "accessory" app (no Dock icon, see main()), so it isn't the
+ * active app when one of its windows opens from the menu bar - without this, the window can open
+ * behind whatever app is in front. Harmless elsewhere. */
+@Composable
+private fun WindowScope.bringToFrontOnOpen() {
+    LaunchedEffect(Unit) {
+        try {
+            val desktop = java.awt.Desktop.getDesktop()
+            if (desktop.isSupported(java.awt.Desktop.Action.APP_REQUEST_FOREGROUND)) {
+                desktop.requestForeground(true)
+            }
+        } catch (e: Exception) {
+            // Best effort - toFront() below still covers most cases.
+        }
+        window.toFront()
+        window.requestFocus()
+    }
+}
+
 /** Command-line flag to start in the tray without opening the dashboard - used by Linux autostart
  * (start-on-login.sh), so logging in doesn't pop a window up. */
 private const val BACKGROUND_FLAG = "--background"
@@ -80,8 +98,12 @@ fun main(args: Array<String>) {
     // macOS otherwise shows the JVM's main class name ("MainKt") and the default Java icon for a
     // plain, unpackaged java process.
     System.setProperty("apple.awt.application.name", AppInfo.NAME)
+    // macOS: run as a menu-bar-only accessory app (LSUIElement) - no Dock icon or Cmd+Tab entry,
+    // since the menu bar icon already gives access to everything, About and Quit included.
+    if (Platform.detect() == Platform.MAC) {
+        System.setProperty("apple.awt.UIElement", "true")
+    }
     applyRuntimeDockIcon()
-    registerAboutHandler { showAboutDialog = true }
 
     // Two instances polling the same ddcutil/betterdisplaycli channel contend with each other
     // and produce the exact DDC/IPC timeouts this app exists to avoid - so only one may run.
@@ -94,6 +116,7 @@ fun main(args: Array<String>) {
         ) {
             AppTheme(themeMode = ConfigManager.config.themeMode) { isDark ->
                 syncTitleBarAppearance(isDark)
+                bringToFrontOnOpen()
                 Surface(modifier = Modifier.fillMaxSize()) {
                     Column(
                         modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -124,21 +147,6 @@ fun main(args: Array<String>) {
     }
 }
 
-/** Registers a custom macOS "About G95NC Controller" panel in place of the generic default Java
- * one. Best-effort: platforms/JDKs without Desktop.Action.APP_ABOUT just keep no About item. */
-private fun registerAboutHandler(onAboutRequested: () -> Unit) {
-    try {
-        if (java.awt.Desktop.isDesktopSupported()) {
-            val desktop = java.awt.Desktop.getDesktop()
-            if (desktop.isSupported(java.awt.Desktop.Action.APP_ABOUT)) {
-                desktop.setAboutHandler { onAboutRequested() }
-            }
-        }
-    } catch (e: Exception) {
-        // Cosmetic only - never worth blocking startup over.
-    }
-}
-
 @Composable
 private fun AboutDialog(onDismiss: () -> Unit, themeMode: ThemeMode) {
     Window(
@@ -150,6 +158,7 @@ private fun AboutDialog(onDismiss: () -> Unit, themeMode: ThemeMode) {
     ) {
         AppTheme(themeMode = themeMode) { isDark ->
             syncTitleBarAppearance(isDark)
+            bringToFrontOnOpen()
             Surface(modifier = Modifier.fillMaxSize()) {
                 Column(
                     modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -186,6 +195,7 @@ private fun ConfigWarningDialog(message: String, onDismiss: () -> Unit, themeMod
     ) {
         AppTheme(themeMode = themeMode) { isDark ->
             syncTitleBarAppearance(isDark)
+            bringToFrontOnOpen()
             Surface(modifier = Modifier.fillMaxSize()) {
                 Column(
                     modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -415,6 +425,7 @@ private fun ApplicationScope.runMainApplication(startInBackground: Boolean = fal
         ) {
             AppTheme(themeMode = config.themeMode) { isDark ->
                 syncTitleBarAppearance(isDark)
+                bringToFrontOnOpen()
                 Surface(modifier = Modifier.fillMaxSize()) {
                     if (!isToolAvailable) {
                         OnboardingWizard(
@@ -511,6 +522,7 @@ private fun ApplicationScope.runMainApplication(startInBackground: Boolean = fal
         ) {
             AppTheme(themeMode = config.themeMode) { isDark ->
                 syncTitleBarAppearance(isDark)
+                bringToFrontOnOpen()
                 Surface(modifier = Modifier.fillMaxSize()) {
                     SettingsModal(
                         config = config,

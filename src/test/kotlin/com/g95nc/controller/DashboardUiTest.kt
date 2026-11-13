@@ -82,6 +82,7 @@ class DashboardUiTest {
         setDashboard(status = null, recoveryExhausted = true, onRefresh = { refreshClicked = true })
 
         composeRule.onNodeWithText("Couldn't reach the monitor after several attempts.").assertIsDisplayed()
+        composeRule.onNodeWithText("1009.2", substring = true).assertIsDisplayed()
         composeRule.onNodeWithText("Try Again").performClick()
 
         assertTrue(refreshClicked)

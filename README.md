@@ -61,9 +61,15 @@ The builds are **not code-signed**. On macOS, right-click the app and choose *Op
 SmartScreen will ask you to confirm under *More info -> Run anyway*.
 
 ## Requirements
+- **Monitor firmware**: Your G95NC must be running firmware **`1009.2`** (`M-C9557GGPA-1009.2`).
 - **Windows**: No external requirements.
 - **Linux**: [ddcutil](https://www.ddcutil.com/) must be installed.
 - **macOS**: [betterdisplaycli](https://github.com/waydabber/betterdisplaycli) must be installed.
+
+> [!IMPORTANT]
+> **Firmware `1009.2` is required.** Earlier firmware versions (`1007.0` and `1008.2`) do **not** support the vendor-specific DDC/CI codes (`0xE2`, `0xE3`, `0xE8`) needed for PBP/PIP and per-pane source switching — queries return `Unsupported feature code` and writes have no effect (see [rockowitz/ddcutil#397](https://github.com/rockowitz/ddcutil/issues/397)).
+>
+> Depending on your region, Samsung's local support page may still list `1008.2` as the latest version; `1009.2` is currently available on Samsung's Korean support page and has been [confirmed on Reddit](https://www.reddit.com/r/ultrawidemasterrace/comments/1puluzt/samsung_odyssey_neo_g9_57_g95nc_new_firmware) to work on EU and North American units as well (flash at your own risk). Because these VCP codes are undocumented, future firmware updates could also change or remove them.
 
 ## Building and Running
 The app is built using Gradle and Compose Multiplatform.

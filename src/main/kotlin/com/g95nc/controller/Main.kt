@@ -244,6 +244,42 @@ private fun ConfigWarningDialog(message: String, onDismiss: () -> Unit, themeMod
 }
 
 @Composable
+private fun FirmwareNoticeDialog(onDismiss: () -> Unit, themeMode: ThemeMode) {
+    Window(
+        onCloseRequest = onDismiss,
+        title = "Monitor Firmware Requirement",
+        icon = AppIconPainter,
+        state = rememberWindowState(width = 460.dp, height = 280.dp),
+        resizable = false
+    ) {
+        AppTheme(themeMode = themeMode) { isDark ->
+            syncTitleBarAppearance(isDark)
+            bringToFrontOnOpen()
+            Surface(modifier = Modifier.fillMaxSize()) {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(24.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("Firmware 1009.2 Required", style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "This app relies on vendor-specific DDC/CI commands that require Samsung Odyssey G95NC firmware 1009.2 (M-C9557GGPA-1009.2).\n\n" +
+                            "Earlier versions (1007.0, 1008.2) do not support PBP/PIP or per-pane source switching. You can check your version in the monitor's OSD under Support → Information.",
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.height(20.dp))
+                    Button(onClick = onDismiss) {
+                        Text("Got it")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ApplicationScope.runMainApplication(startInBackground: Boolean = false) {
     val macLoginItem = remember { if (Platform.detect() == Platform.MAC) MacLoginItem() else null }
     // If start-at-login is on but the app was moved since, point it at the new location.
@@ -581,6 +617,13 @@ private fun ApplicationScope.runMainApplication(startInBackground: Boolean = fal
         ConfigWarningDialog(
             message = warning,
             onDismiss = { ConfigManager.dismissLoadWarning() },
+            themeMode = config.themeMode
+        )
+    }
+
+    if (!config.hasSeenFirmwareNotice && ConfigManager.loadWarning == null) {
+        FirmwareNoticeDialog(
+            onDismiss = { ConfigManager.updateConfig(config.copy(hasSeenFirmwareNotice = true)) },
             themeMode = config.themeMode
         )
     }

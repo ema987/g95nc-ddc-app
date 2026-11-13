@@ -56,4 +56,13 @@ class ConfigLoadTest {
         assertEquals(AppConfig(), result.config)
         assertTrue(result.warning!!.contains("defaults", ignoreCase = true))
     }
+
+    @Test
+    fun testLegacyConfigWithoutFirmwareNoticeFlag_defaultsToFalse() {
+        val legacyJson = """{"ddcutilPath":"ddcutil"}"""
+        val result = resolveConfigLoad(mainContent = legacyJson, backupContent = null, parse = ::parse)
+
+        assertEquals(false, result.config.hasSeenFirmwareNotice)
+        assertNull(result.warning)
+    }
 }

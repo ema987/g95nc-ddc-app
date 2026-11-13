@@ -21,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -245,6 +246,14 @@ fun Dashboard(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "Ensure your G95NC is running firmware 1009.2 (M-C9557GGPA-1009.2); earlier versions do not support PBP DDC/CI commands.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = 24.dp)
+                        )
                         Spacer(modifier = Modifier.height(16.dp))
                         Button(onClick = onRefresh) {
                             Text("Try Again")

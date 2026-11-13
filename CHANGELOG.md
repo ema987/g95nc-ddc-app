@@ -9,6 +9,10 @@ the release workflow uses that section as the GitHub release notes.
 
 ## [Unreleased]
 
+### Added
+- Firmware `1009.2` requirement notice: one-time first-launch dialog, connection-failure hint,
+  and README documentation.
+
 ## [1.0.0] - 2026-10-11
 
 First public release.

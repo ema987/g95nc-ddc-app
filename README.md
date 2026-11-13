@@ -8,7 +8,7 @@ This app is a frontend and extension of the reverse-engineered scripts from the 
 > **Experimental and vibe-coded.** This app was built largely with AI assistance ([Claude Code](https://claude.com/claude-code) and [Antigravity](https://antigravity.google/)/Gemini) as a personal project. It works on my setup, but it sends raw DDC/CI commands to your monitor - use it at your own risk, and expect rough edges.
 
 > [!NOTE]
-> **Windows is untested.** The Windows build (native DXVA2 backend and `.msi` installer) has never been run on real Windows hardware. It may work; it may not. Reports and fixes are very welcome.
+> **Windows status.** I haven't personally tested the Windows build (native DXVA2 backend and `.msi` installer) on real Windows hardware, though it has been reported as working by a user in the comments on [my blog post](https://www.emanuelepapa.dev/control-your-samsung-odyssey-g95nc-57-pbp-layouts-and-inputs-from-the-desktop-with-g95nc-controller/). Reports and fixes are still very welcome.
 
 <p align="center">
   <img src="docs/screenshots/dashboard-dark.png" alt="Dashboard (dark theme)" width="420">
@@ -34,7 +34,7 @@ Prebuilt installers are attached to every [GitHub Release](../../releases/latest
 |---|---|
 | macOS (Apple Silicon) | `G95NC-Controller-<version>-macos-arm64.dmg` |
 | macOS (Intel) | `G95NC-Controller-<version>-macos-x64.dmg` |
-| Windows (untested) | `G95NC-Controller-<version>-windows-x64.msi` |
+| Windows | `G95NC-Controller-<version>-windows-x64.msi` |
 | Linux (Debian/Ubuntu) | `G95NC-Controller-<version>-linux-x64.deb` |
 | Linux (Fedora/openSUSE) | `G95NC-Controller-<version>-linux-x64.rpm` |
 | Linux (portable, any distro) | `G95NC-Controller-<version>-linux-x64.tar.gz` |

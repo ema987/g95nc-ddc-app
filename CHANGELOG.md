@@ -18,6 +18,9 @@ the release workflow uses that section as the GitHub release notes.
 
 ## [1.1.0] - 2026-11-16
 
+> **Note:** Packaged `1.1.0` builds crash at launch (`java.net.http` missing from the bundled
+> runtime) — use [1.1.1] instead.
+
 ### Added
 - Preset editor dialog: create presets from scratch (layout, per-pane inputs, audio source)
   and edit all fields of existing presets, alongside "Save Current as Preset".

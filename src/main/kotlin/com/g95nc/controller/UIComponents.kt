@@ -122,7 +122,10 @@ fun Dashboard(
     onExecuteAction: (Boolean, suspend (MonitorStatus?) -> Boolean) -> Unit,
     onRefresh: () -> Unit,
     actionFailureMessage: String? = null,
-    onDismissActionFailure: () -> Unit = {}
+    onDismissActionFailure: () -> Unit = {},
+    availableUpdate: ReleaseInfo? = null,
+    onOpenReleasePage: (String) -> Unit = { UpdateChecker.openReleasePage(it) },
+    onDismissUpdate: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
     var isSavingPreset by remember { mutableStateOf(false) }
@@ -221,6 +224,37 @@ fun Dashboard(
                             Icons.Default.Close,
                             contentDescription = "Dismiss",
                             tint = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
+            }
+        }
+
+        if (availableUpdate != null) {
+            Surface(
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp).testTag("updateAvailableBanner")
+            ) {
+                Row(
+                    modifier = Modifier.padding(start = 16.dp, top = 6.dp, bottom = 6.dp, end = 8.dp).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Update available: v${availableUpdate.version}",
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { onOpenReleasePage(availableUpdate.url) }) {
+                        Text("Download")
+                    }
+                    IconButton(onClick = onDismissUpdate) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Dismiss update",
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer
                         )
                     }
                 }
@@ -587,6 +621,7 @@ fun SettingsModal(
     var ddcPath by remember { mutableStateOf(config.ddcutilPath) }
     var bdPath by remember { mutableStateOf(config.betterdisplaycliPath) }
     var enableCountdown by remember { mutableStateOf(config.enableSafetyCountdown) }
+    var checkUpdatesAtLaunch by remember { mutableStateOf(config.checkUpdatesAtLaunch) }
     val showStartAtLogin = platform == Platform.MAC && loginItem?.isSupported == true
     var startAtLogin by remember { mutableStateOf(loginItem?.isEnabled == true) }
     var startAtLoginError by remember { mutableStateOf<String?>(null) }
@@ -704,6 +739,16 @@ fun SettingsModal(
             Text("Enable Safety Countdown (auto-revert changes)")
         }
 
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(
+                checked = checkUpdatesAtLaunch,
+                onCheckedChange = { checkUpdatesAtLaunch = it },
+                modifier = Modifier.testTag("checkUpdatesCheckbox")
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Check for updates at launch")
+        }
+
         // macOS only: Linux autostart is set up by install.sh, and Windows has none yet.
         if (showStartAtLogin) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -759,6 +804,7 @@ fun SettingsModal(
                         ddcutilPath = ddcPath,
                         betterdisplaycliPath = bdPath,
                         enableSafetyCountdown = enableCountdown,
+                        checkUpdatesAtLaunch = checkUpdatesAtLaunch,
                         themeMode = themeMode
                     ))
                 }

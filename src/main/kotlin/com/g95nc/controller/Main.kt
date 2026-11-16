@@ -3,9 +3,11 @@ package com.g95nc.controller
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -178,11 +180,23 @@ fun main(args: Array<String>) {
 
 @Composable
 private fun AboutDialog(onDismiss: () -> Unit, themeMode: ThemeMode, requests: Int) {
+    val scope = rememberCoroutineScope()
+    var isChecking by remember { mutableStateOf(false) }
+    var checkResult by remember { mutableStateOf<UpdateCheckResult?>(null) }
+
+    fun runCheck() {
+        scope.launch {
+            isChecking = true
+            checkResult = UpdateChecker.checkForUpdate()
+            isChecking = false
+        }
+    }
+
     Window(
         onCloseRequest = onDismiss,
         title = "About ${AppInfo.NAME}",
         icon = AppIconPainter,
-        state = rememberWindowState(width = 360.dp, height = 280.dp),
+        state = rememberWindowState(width = 360.dp, height = 340.dp),
         resizable = false
     ) {
         AppTheme(themeMode = themeMode) { isDark ->
@@ -191,19 +205,93 @@ private fun AboutDialog(onDismiss: () -> Unit, themeMode: ThemeMode, requests: I
             Surface(modifier = Modifier.fillMaxSize()) {
                 Column(
                     modifier = Modifier.fillMaxSize().padding(24.dp),
-                    verticalArrangement = Arrangement.Center,
+                    verticalArrangement = Arrangement.SpaceBetween,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Image(painter = AppIconPainter, contentDescription = null, modifier = Modifier.size(72.dp))
-                    Spacer(Modifier.height(16.dp))
-                    Text(AppInfo.NAME, style = MaterialTheme.typography.titleLarge)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "Version ${AppInfo.VERSION}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(20.dp))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Image(painter = AppIconPainter, contentDescription = null, modifier = Modifier.size(68.dp))
+                        Spacer(Modifier.height(12.dp))
+                        Text(AppInfo.NAME, style = MaterialTheme.typography.titleLarge)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Version ${AppInfo.VERSION}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 68.dp).padding(horizontal = 12.dp, vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            when {
+                                isChecking -> {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                        Text("Checking for updates...", style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                                checkResult == null -> {
+                                    TextButton(onClick = ::runCheck) {
+                                        Text("Check for Updates")
+                                    }
+                                }
+                                checkResult is UpdateCheckResult.UpToDate -> {
+                                    Text(
+                                        "You're up to date.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = AppColors.signalActive
+                                    )
+                                }
+                                checkResult is UpdateCheckResult.UpdateAvailable -> {
+                                    val release = (checkResult as UpdateCheckResult.UpdateAvailable).release
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(
+                                            "Update available: v${release.version}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        TextButton(onClick = { UpdateChecker.openReleasePage(release.url) }) {
+                                            Text("Open Release Page")
+                                        }
+                                    }
+                                }
+                                checkResult is UpdateCheckResult.DevBuild -> {
+                                    val release = (checkResult as UpdateCheckResult.DevBuild).latestRelease
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(
+                                            "Latest release: v${release.version}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        TextButton(onClick = { UpdateChecker.openReleasePage(release.url) }) {
+                                            Text("Open Release Page")
+                                        }
+                                    }
+                                }
+                                checkResult is UpdateCheckResult.Error -> {
+                                    val msg = (checkResult as UpdateCheckResult.Error).message
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(
+                                            "Update check failed: $msg",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.error,
+                                            textAlign = TextAlign.Center
+                                        )
+                                        TextButton(onClick = ::runCheck) {
+                                            Text("Retry")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     Button(onClick = onDismiss) {
                         Text("OK")
                     }
@@ -433,6 +521,18 @@ private fun ApplicationScope.runMainApplication(startInBackground: Boolean = fal
         SystemTheme.observeTrayDark { systemIsDark = it }
     }
 
+    var availableUpdate by remember { mutableStateOf<ReleaseInfo?>(null) }
+    LaunchedEffect(Unit) {
+        if (config.checkUpdatesAtLaunch) {
+            val result = UpdateChecker.checkForUpdate()
+            if (result is UpdateCheckResult.UpdateAvailable &&
+                result.release.version != config.dismissedUpdateVersion
+            ) {
+                availableUpdate = result.release
+            }
+        }
+    }
+
     if (Platform.detect() == Platform.LINUX) {
         LinuxTray(
             isDark = systemIsDark,
@@ -525,6 +625,14 @@ private fun ApplicationScope.runMainApplication(startInBackground: Boolean = fal
                             onConfigChange = { ConfigManager.updateConfig(it) },
                             onSettingsClick = { openSettings() },
                             onConfirmChange = { pendingChange = null },
+                            availableUpdate = availableUpdate,
+                            onDismissUpdate = {
+                                val dismissedVersion = availableUpdate?.version
+                                availableUpdate = null
+                                if (dismissedVersion != null) {
+                                    ConfigManager.updateConfig(config.copy(dismissedUpdateVersion = dismissedVersion))
+                                }
+                            },
                             onRevertChange = {
                                 val change = pendingChange
                                 if (change != null && !isBusy) {

@@ -12,6 +12,9 @@ the release workflow uses that section as the GitHub release notes.
 ### Added
 - Firmware `1009.2` requirement notice: one-time first-launch dialog, connection-failure hint,
   and README documentation.
+- Update checker against GitHub Releases: automatic check at launch with a dismissible
+  dashboard banner, a "Check for updates at launch" setting, and a manual "Check for Updates"
+  button in the About dialog.
 
 ### Changed
 - Monochrome split-screen system tray / menu bar icon adapting to OS light and dark themes

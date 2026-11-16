@@ -81,6 +81,8 @@ data class AppConfig(
     val enableSafetyCountdown: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val hasSeenFirmwareNotice: Boolean = false,
+    val checkUpdatesAtLaunch: Boolean = true,
+    val dismissedUpdateVersion: String? = null,
     // Null until the user actually resizes/moves the dashboard - only then do we override the
     // computed default/OS-placed window bounds on the next launch.
     val dashboardWindowWidth: Float? = null,

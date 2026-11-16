@@ -6,11 +6,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.awt.Desktop
+import java.net.HttpURLConnection
 import java.net.URI
-import java.net.http.HttpClient
-import java.net.http.HttpRequest
-import java.net.http.HttpResponse
-import java.time.Duration
 
 data class ReleaseInfo(
     val version: String,
@@ -36,13 +33,6 @@ object UpdateChecker {
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    private val httpClient: HttpClient by lazy {
-        HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5))
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .build()
-    }
-
     suspend fun checkForUpdate(
         currentVersion: String = AppInfo.VERSION,
         fetchLatest: suspend () -> ReleaseInfo = ::fetchLatestRelease
@@ -65,20 +55,28 @@ object UpdateChecker {
     }
 
     suspend fun fetchLatestRelease(): ReleaseInfo = withContext(Dispatchers.IO) {
-        val request = HttpRequest.newBuilder()
-            .uri(URI.create(LATEST_RELEASE_API))
-            .timeout(Duration.ofSeconds(5))
-            .header("Accept", "application/vnd.github+json")
-            .header("User-Agent", AppInfo.NAME)
-            .GET()
-            .build()
-
-        val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-        if (response.statusCode() !in 200..299) {
-            throw RuntimeException("GitHub API returned HTTP ${response.statusCode()}")
+        // Use HttpURLConnection (java.base) instead of java.net.http.HttpClient so packaged
+        // jpackage/jlink runtimes don't fail with ClassNotFoundException when java.net.http
+        // isn't bundled.
+        val conn = (URI.create(LATEST_RELEASE_API).toURL().openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 5_000
+            readTimeout = 5_000
+            instanceFollowRedirects = true
+            setRequestProperty("Accept", "application/vnd.github+json")
+            setRequestProperty("User-Agent", AppInfo.NAME)
         }
-        parseReleaseJson(response.body())
-            ?: throw RuntimeException("Unexpected release response from GitHub")
+        try {
+            val status = conn.responseCode
+            if (status !in 200..299) {
+                throw RuntimeException("GitHub API returned HTTP $status")
+            }
+            val body = conn.inputStream.bufferedReader().use { it.readText() }
+            parseReleaseJson(body)
+                ?: throw RuntimeException("Unexpected release response from GitHub")
+        } finally {
+            conn.disconnect()
+        }
     }
 
     internal fun parseReleaseJson(body: String): ReleaseInfo? = try {

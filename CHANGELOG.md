@@ -9,6 +9,8 @@ the release workflow uses that section as the GitHub release notes.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-16
+
 ### Added
 - Preset editor dialog: create presets from scratch (layout, per-pane inputs, audio source)
   and edit all fields of existing presets, alongside "Save Current as Preset".
@@ -40,5 +42,6 @@ First public release.
   (`.deb`, `.rpm`), plus a portable Linux `.tar.gz` for immutable distros (Bazzite, Silverblue,
   SteamOS...) whose `install.sh` adds a start menu entry and supports `--update` and `--uninstall`.
 
-[Unreleased]: https://github.com/ema987/g95nc-ddc-app/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/ema987/g95nc-ddc-app/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/ema987/g95nc-ddc-app/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/ema987/g95nc-ddc-app/releases/tag/v1.0.0

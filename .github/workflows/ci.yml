@@ -33,6 +33,22 @@ jobs:
       - name: Run tests
         run: ./gradlew test --console=plain
 
+      - name: Verify packaged jlink runtime covers all JDK modules used by the app
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          ./gradlew createDistributable --console=plain
+          RELEASE_FILE=$(find build/compose/binaries/main/app -name 'release' | head -n 1)
+          BUNDLED=$(grep '^MODULES=' "$RELEASE_FILE" | cut -d'"' -f2)
+          REQUIRED=$(jdeps --multi-release 21 --ignore-missing-deps --print-module-deps build/libs/*.jar | tr ',' ' ')
+          echo "Bundled modules: $BUNDLED"
+          echo "Required modules: $REQUIRED"
+          for mod in $REQUIRED; do
+            if ! echo " $BUNDLED " | grep -q " $mod "; then
+              echo "::error::App requires JDK module '$mod' which is not bundled in the jlink runtime. Add it to nativeDistributions { modules(...) } in build.gradle.kts or avoid it."
+              exit 1
+            fi
+          done
+
       - name: Upload test report
         if: failure()
         uses: actions/upload-artifact@v7

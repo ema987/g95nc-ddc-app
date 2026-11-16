@@ -96,6 +96,9 @@ fun List<Preset>.withoutPreset(id: String): List<Preset> = filterNot { it.id == 
 fun List<Preset>.renamed(id: String, newName: String): List<Preset> =
     map { if (it.id == id) it.copy(name = newName) else it }
 
+fun List<Preset>.updated(preset: Preset): List<Preset> =
+    map { if (it.id == preset.id) preset else it }
+
 /** Moves the preset with this id one position earlier; a no-op if it's missing or already first. */
 fun List<Preset>.movedUp(id: String): List<Preset> {
     val index = indexOfFirst { it.id == id }

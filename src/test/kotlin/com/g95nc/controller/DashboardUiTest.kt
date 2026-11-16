@@ -114,6 +114,7 @@ class DashboardUiTest {
 
         composeRule.onNodeWithContentDescription("Refresh").assertIsNotEnabled()
         composeRule.onNodeWithTag("paneCell_PANE_1").assertIsNotEnabled()
+        composeRule.onNodeWithText("New Preset").assertIsNotEnabled()
         composeRule.onNodeWithText("Save Current as Preset").assertIsNotEnabled()
         composeRule.onNodeWithText("Apply").assertIsNotEnabled()
         composeRule.onNodeWithContentDescription("Delete preset").assertIsNotEnabled()
@@ -319,32 +320,63 @@ class DashboardUiTest {
     }
 
     @Test
-    fun testPresetRename_confirmReportsConfigWithNewName() {
-        val preset = Preset(id = "p1", name = "Old Name", layout = Layout.OFF, paneSources = emptyMap())
+    fun testPresetEdit_confirmReportsConfigWithUpdatedFields() {
+        val preset = Preset(id = "p1", name = "Old Name", layout = Layout.OFF, paneSources = mapOf(PaneChannel.PANE_1 to SourceCode.DP))
         var reported: AppConfig? = null
         setDashboard(config = AppConfig(presets = listOf(preset)), onConfigChange = { reported = it })
 
-        composeRule.onNodeWithContentDescription("Rename preset").performScrollTo().performClick()
-        composeRule.onNodeWithTag("renamePresetField").performScrollTo().performTextClearance()
-        composeRule.onNodeWithTag("renamePresetField").performTextInput("New Name")
-        composeRule.onNodeWithContentDescription("Confirm rename").performScrollTo().performClick()
+        composeRule.onNodeWithContentDescription("Edit preset").performScrollTo().performClick()
+        composeRule.onNodeWithTag("presetEditorNameField").performTextClearance()
+        composeRule.onNodeWithTag("presetEditorNameField").performTextInput("New Name")
+        composeRule.onNodeWithTag("presetEditorLayoutButton").performClick()
+        composeRule.onNodeWithText(Layout.PBP_2_50_50.description).performClick()
+        composeRule.onNodeWithTag("presetEditorSource_PANE_2").performClick()
+        composeRule.onNodeWithText(SourceCode.HDMI2.description).performClick()
+        composeRule.onNodeWithTag("presetEditorAudioButton").performClick()
+        composeRule.onNodeWithTag("presetEditorAudioOption_PANE_2").performClick()
+        composeRule.onNodeWithText("Save").performClick()
 
-        assertEquals("New Name", reported?.presets?.single()?.name)
+        val updated = reported?.presets?.single()
+        assertEquals("New Name", updated?.name)
+        assertEquals(Layout.PBP_2_50_50, updated?.layout)
+        assertEquals(SourceCode.HDMI2, updated?.paneSources?.get(PaneChannel.PANE_2))
+        assertEquals(PaneChannel.PANE_2.channel, updated?.audioSource)
     }
 
     @Test
-    fun testPresetRename_cancelReportsNothingAndKeepsOriginalName() {
+    fun testPresetEdit_cancelReportsNothingAndKeepsOriginalPreset() {
         val preset = Preset(id = "p1", name = "Old Name", layout = Layout.OFF, paneSources = emptyMap())
         var reported: AppConfig? = null
         setDashboard(config = AppConfig(presets = listOf(preset)), onConfigChange = { reported = it })
 
-        composeRule.onNodeWithContentDescription("Rename preset").performScrollTo().performClick()
-        composeRule.onNodeWithTag("renamePresetField").performScrollTo().performTextClearance()
-        composeRule.onNodeWithTag("renamePresetField").performTextInput("Should Not Save")
-        composeRule.onNodeWithContentDescription("Cancel rename").performScrollTo().performClick()
+        composeRule.onNodeWithContentDescription("Edit preset").performScrollTo().performClick()
+        composeRule.onNodeWithTag("presetEditorNameField").performTextClearance()
+        composeRule.onNodeWithTag("presetEditorNameField").performTextInput("Should Not Save")
+        composeRule.onNodeWithText("Cancel").performClick()
 
         assertNull(reported)
         composeRule.onNodeWithText("Old Name").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun testNewPresetFromScratch_supportsThreeWayPbpAndAllThreePanes() {
+        var reported: AppConfig? = null
+        setDashboard(config = AppConfig(presets = emptyList()), onConfigChange = { reported = it })
+
+        composeRule.onNodeWithText("New Preset").performScrollTo().performClick()
+        composeRule.onNodeWithTag("presetEditorNameField").performTextInput("Triple Setup")
+        composeRule.onNodeWithTag("presetEditorLayoutButton").performClick()
+        composeRule.onNodeWithText(Layout.PBP_3_50_25_25.description).performClick()
+        composeRule.onNodeWithTag("presetEditorSource_PANE_3").assertIsDisplayed()
+        composeRule.onNodeWithTag("presetEditorSource_PANE_3").performClick()
+        composeRule.onNodeWithText(SourceCode.HDMI3.description).performClick()
+        composeRule.onNodeWithText("Save").performClick()
+
+        val created = reported?.presets?.single()
+        assertEquals("Triple Setup", created?.name)
+        assertEquals(Layout.PBP_3_50_25_25, created?.layout)
+        assertEquals(3, created?.paneSources?.size)
+        assertEquals(SourceCode.HDMI3, created?.paneSources?.get(PaneChannel.PANE_3))
     }
 
     @Test

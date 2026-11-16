@@ -130,8 +130,8 @@ fun Dashboard(
     val scope = rememberCoroutineScope()
     var isSavingPreset by remember { mutableStateOf(false) }
     var newPresetName by remember { mutableStateOf("") }
-    var renamingPresetId by remember { mutableStateOf<String?>(null) }
-    var renamePresetText by remember { mutableStateOf("") }
+    var isCreatingPreset by remember { mutableStateOf(false) }
+    var editingPreset by remember { mutableStateOf<Preset?>(null) }
     var presetPendingDelete by remember { mutableStateOf<Preset?>(null) }
     // Single source of truth is the config passed in from above - no separate local copy that
     // can drift from what's actually persisted (and what the Settings modal shows).
@@ -365,8 +365,13 @@ fun Dashboard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("Presets", style = MaterialTheme.typography.titleMedium)
-                    Button(onClick = { isSavingPreset = true }, enabled = !isBusy) {
-                        Text("Save Current as Preset")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { isCreatingPreset = true }, enabled = !isBusy) {
+                            Text("New Preset")
+                        }
+                        Button(onClick = { isSavingPreset = true }, enabled = !isBusy) {
+                            Text("Save Current as Preset")
+                        }
                     }
                 }
 
@@ -413,126 +418,95 @@ fun Dashboard(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                if (renamingPresetId != preset.id) {
-                                    Column {
-                                        IconTooltip("Move up") {
-                                            IconButton(
-                                                onClick = { onConfigChange(config.copy(presets = config.presets.movedUp(preset.id))) },
-                                                enabled = !isBusy && index > 0,
-                                                modifier = Modifier.size(24.dp)
-                                            ) {
-                                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Move preset up", modifier = Modifier.size(16.dp))
-                                            }
-                                        }
-                                        IconTooltip("Move down") {
-                                            IconButton(
-                                                onClick = { onConfigChange(config.copy(presets = config.presets.movedDown(preset.id))) },
-                                                enabled = !isBusy && index < config.presets.lastIndex,
-                                                modifier = Modifier.size(24.dp)
-                                            ) {
-                                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Move preset down", modifier = Modifier.size(16.dp))
-                                            }
+                                Column {
+                                    IconTooltip("Move up") {
+                                        IconButton(
+                                            onClick = { onConfigChange(config.copy(presets = config.presets.movedUp(preset.id))) },
+                                            enabled = !isBusy && index > 0,
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Move preset up", modifier = Modifier.size(16.dp))
                                         }
                                     }
-                                    Spacer(modifier = Modifier.width(4.dp))
+                                    IconTooltip("Move down") {
+                                        IconButton(
+                                            onClick = { onConfigChange(config.copy(presets = config.presets.movedDown(preset.id))) },
+                                            enabled = !isBusy && index < config.presets.lastIndex,
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Move preset down", modifier = Modifier.size(16.dp))
+                                        }
+                                    }
                                 }
-                                if (renamingPresetId == preset.id) {
-                                    OutlinedTextField(
-                                        value = renamePresetText,
-                                        onValueChange = { renamePresetText = it },
-                                        modifier = Modifier.weight(1f).padding(end = 8.dp).testTag("renamePresetField"),
-                                        singleLine = true
-                                    )
-                                    IconTooltip("Confirm rename") {
-                                        IconButton(onClick = {
-                                            if (renamePresetText.isNotBlank()) {
-                                                onConfigChange(config.copy(presets = config.presets.renamed(preset.id, renamePresetText)))
-                                            }
-                                            renamingPresetId = null
-                                        }) {
-                                            Icon(Icons.Default.Check, contentDescription = "Confirm rename")
-                                        }
-                                    }
-                                    IconTooltip("Cancel rename") {
-                                        IconButton(onClick = { renamingPresetId = null }) {
-                                            Icon(Icons.Default.Close, contentDescription = "Cancel rename")
-                                        }
-                                    }
-                                } else {
-                                    Column(modifier = Modifier.padding(end = 8.dp)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(preset.name, style = MaterialTheme.typography.bodyLarge)
-                                            if (preset.matchesStatus(status)) {
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Surface(
-                                                    color = MaterialTheme.colorScheme.primary,
-                                                    shape = MaterialTheme.shapes.small
-                                                ) {
-                                                    Text(
-                                                        "Active",
-                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.onPrimary
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        Text(
-                                            preset.layout.description,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    PresetThumbnail(preset, modifier = Modifier.width(56.dp))
-                                    Spacer(modifier = Modifier.weight(1f))
-                                    IconTooltip("Rename preset") {
-                                        IconButton(
-                                            onClick = {
-                                                renamePresetText = preset.name
-                                                renamingPresetId = preset.id
-                                            },
-                                            enabled = !isBusy
-                                        ) {
-                                            Icon(Icons.Default.Edit, contentDescription = "Rename preset")
-                                        }
-                                    }
-                                    IconTooltip("Delete preset") {
-                                        IconButton(
-                                            onClick = { presetPendingDelete = preset },
-                                            enabled = !isBusy
-                                        ) {
-                                            Icon(Icons.Default.Delete, contentDescription = "Delete preset")
-                                        }
-                                    }
-                                    Button(
-                                        onClick = {
-                                            onExecuteAction(safeMode) { currentStatus ->
-                                                MonitorActions.applyTarget(
-                                                    controller = controller,
-                                                    currentStatus = currentStatus,
-                                                    targetLayout = preset.layout,
-                                                    targetPaneSources = preset.paneSources,
-                                                    targetAudioSource = preset.audioSource
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Column(modifier = Modifier.padding(end = 8.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(preset.name, style = MaterialTheme.typography.bodyLarge)
+                                        if (preset.matchesStatus(status)) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Surface(
+                                                color = MaterialTheme.colorScheme.primary,
+                                                shape = MaterialTheme.shapes.small
+                                            ) {
+                                                Text(
+                                                    "Active",
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onPrimary
                                                 )
                                             }
-                                        },
+                                        }
+                                    }
+                                    Text(
+                                        preset.layout.description,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                PresetThumbnail(preset, modifier = Modifier.width(56.dp))
+                                Spacer(modifier = Modifier.weight(1f))
+                                IconTooltip("Edit preset") {
+                                    IconButton(
+                                        onClick = { editingPreset = preset },
                                         enabled = !isBusy
                                     ) {
-                                        Text("Apply")
+                                        Icon(Icons.Default.Edit, contentDescription = "Edit preset")
                                     }
                                 }
-                            }
-                            if (renamingPresetId != preset.id) {
-                                val slots = paneSlotsFor(preset.layout)
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    slots.forEach { (channel, label) ->
-                                        SourceChip(label, preset.paneSources[channel])
+                                IconTooltip("Delete preset") {
+                                    IconButton(
+                                        onClick = { presetPendingDelete = preset },
+                                        enabled = !isBusy
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete preset")
                                     }
-                                    if (slots.size > 1) {
-                                        slots.firstOrNull { it.first.channel == preset.audioSource }?.let { (_, label) ->
-                                            AudioChip(label)
+                                }
+                                Button(
+                                    onClick = {
+                                        onExecuteAction(safeMode) { currentStatus ->
+                                            MonitorActions.applyTarget(
+                                                controller = controller,
+                                                currentStatus = currentStatus,
+                                                targetLayout = preset.layout,
+                                                targetPaneSources = preset.paneSources,
+                                                targetAudioSource = preset.audioSource
+                                            )
                                         }
+                                    },
+                                    enabled = !isBusy
+                                ) {
+                                    Text("Apply")
+                                }
+                            }
+                            val slots = paneSlotsFor(preset.layout)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                slots.forEach { (channel, label) ->
+                                    SourceChip(label, preset.paneSources[channel])
+                                }
+                                if (slots.size > 1) {
+                                    slots.firstOrNull { it.first.channel == preset.audioSource }?.let { (_, label) ->
+                                        AudioChip(label)
                                     }
                                 }
                             }
@@ -564,6 +538,210 @@ fun Dashboard(
             }
         )
     }
+
+    if (isCreatingPreset || editingPreset != null) {
+        PresetEditorDialog(
+            initialPreset = editingPreset,
+            onDismiss = {
+                isCreatingPreset = false
+                editingPreset = null
+            },
+            onSave = { saved ->
+                val updatedPresets = if (editingPreset != null) {
+                    config.presets.updated(saved)
+                } else {
+                    config.presets + saved
+                }
+                onConfigChange(config.copy(presets = updatedPresets))
+                isCreatingPreset = false
+                editingPreset = null
+            }
+        )
+    }
+}
+
+@Composable
+internal fun PresetEditorDialog(
+    initialPreset: Preset?,
+    onDismiss: () -> Unit,
+    onSave: (Preset) -> Unit
+) {
+    var name by remember(initialPreset) { mutableStateOf(initialPreset?.name ?: "") }
+    var selectedLayout by remember(initialPreset) { mutableStateOf(initialPreset?.layout ?: Layout.PBP_2_50_50) }
+    var paneSources by remember(initialPreset) {
+        mutableStateOf(
+            initialPreset?.paneSources ?: mapOf(
+                PaneChannel.PANE_1 to SourceCode.DP,
+                PaneChannel.PANE_2 to SourceCode.HDMI1,
+                PaneChannel.PANE_3 to SourceCode.HDMI2
+            )
+        )
+    }
+    var audioSource by remember(initialPreset) { mutableStateOf(initialPreset?.audioSource) }
+    var layoutExpanded by remember { mutableStateOf(false) }
+    var audioExpanded by remember { mutableStateOf(false) }
+    var expandedSourceChannel by remember { mutableStateOf<PaneChannel?>(null) }
+
+    val slots = paneSlotsFor(selectedLayout)
+    val previewPreset = Preset(
+        id = initialPreset?.id ?: "preview",
+        name = name.ifBlank { "Preview" },
+        layout = selectedLayout,
+        paneSources = slots.associate { (ch, _) -> ch to (paneSources[ch] ?: SourceCode.DP) },
+        audioSource = audioSource?.takeIf { code -> slots.size > 1 && slots.any { it.first.channel == code } }
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (initialPreset == null) "New Preset" else "Edit Preset") },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Preset Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("presetEditorNameField")
+                )
+
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text("Layout", style = MaterialTheme.typography.labelMedium)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Box {
+                        OutlinedButton(
+                            onClick = { layoutExpanded = true },
+                            modifier = Modifier.fillMaxWidth().testTag("presetEditorLayoutButton")
+                        ) {
+                            Text(selectedLayout.description, maxLines = 1)
+                        }
+                        DropdownMenu(expanded = layoutExpanded, onDismissRequest = { layoutExpanded = false }) {
+                            Layout.entries.forEach { layout ->
+                                DropdownMenuItem(
+                                    text = { Text(layout.description) },
+                                    onClick = {
+                                        selectedLayout = layout
+                                        layoutExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                slots.forEach { (channel, label) ->
+                    val currentSource = paneSources[channel] ?: SourceCode.DP
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(label, style = MaterialTheme.typography.bodyMedium)
+                        Box {
+                            OutlinedButton(
+                                onClick = { expandedSourceChannel = channel },
+                                modifier = Modifier.testTag("presetEditorSource_${channel.name}")
+                            ) {
+                                Text(currentSource.description)
+                            }
+                            DropdownMenu(
+                                expanded = expandedSourceChannel == channel,
+                                onDismissRequest = { expandedSourceChannel = null }
+                            ) {
+                                SourceCode.entries.forEach { source ->
+                                    DropdownMenuItem(
+                                        text = { Text(source.description) },
+                                        onClick = {
+                                            paneSources = paneSources + (channel to source)
+                                            expandedSourceChannel = null
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (slots.size > 1) {
+                    val currentAudioLabel = slots.firstOrNull { it.first.channel == previewPreset.audioSource }?.second
+                        ?: "Don't change"
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Audio", style = MaterialTheme.typography.bodyMedium)
+                        Box {
+                            OutlinedButton(
+                                onClick = { audioExpanded = true },
+                                modifier = Modifier.testTag("presetEditorAudioButton")
+                            ) {
+                                Text(currentAudioLabel)
+                            }
+                            DropdownMenu(expanded = audioExpanded, onDismissRequest = { audioExpanded = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Don't change") },
+                                    onClick = {
+                                        audioSource = null
+                                        audioExpanded = false
+                                    }
+                                )
+                                slots.forEach { (channel, label) ->
+                                    DropdownMenuItem(
+                                        text = { Text(label) },
+                                        modifier = Modifier.testTag("presetEditorAudioOption_${channel.name}"),
+                                        onClick = {
+                                            audioSource = channel.channel
+                                            audioExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider()
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        "Preview",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    LayoutDiagramPreview(previewPreset, modifier = Modifier.fillMaxWidth())
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                enabled = name.isNotBlank(),
+                onClick = {
+                    val trimmed = name.trim()
+                    val result = Preset(
+                        id = initialPreset?.id ?: UUID.randomUUID().toString(),
+                        name = trimmed,
+                        layout = selectedLayout,
+                        paneSources = previewPreset.paneSources,
+                        audioSource = previewPreset.audioSource
+                    )
+                    onSave(result)
+                }
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable

@@ -8,7 +8,8 @@ import androidx.compose.ui.graphics.toAwtImage
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.isRoot
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.runSkikoComposeUiTest
 import androidx.compose.ui.unit.Density
 import org.junit.Assume.assumeTrue
@@ -47,7 +48,7 @@ class ScreenshotGenerator {
         runSkikoComposeUiTest(size = Size(widthDp * scale, heightDp * scale), density = Density(scale)) {
             setContent(content)
             waitForIdle()
-            val image = onRoot().captureToImage().toAwtImage()
+            val image = onAllNodes(isRoot()).onLast().captureToImage().toAwtImage()
             File(dir!!).mkdirs()
             ImageIO.write(image, "png", File(dir, "$name.png"))
         }
@@ -94,6 +95,19 @@ class ScreenshotGenerator {
         AppTheme(themeMode = ThemeMode.DARK) {
             Surface(modifier = Modifier.fillMaxSize()) {
                 SettingsModal(config = AppConfig(), onSave = {}, controller = FakeMonitorController(), platform = Platform.MAC, loginItem = loginItem)
+            }
+        }
+    }
+
+    @Test
+    fun presetEditorDark() = capture("preset-editor-dark", 560, 800) {
+        AppTheme(themeMode = ThemeMode.DARK) {
+            Surface(modifier = Modifier.fillMaxSize()) {
+                PresetEditorDialog(
+                    initialPreset = presets[1].copy(audioSource = PaneChannel.PANE_2.channel),
+                    onDismiss = {},
+                    onSave = {}
+                )
             }
         }
     }

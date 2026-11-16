@@ -72,8 +72,53 @@ fun LayoutDiagram(
     modifier: Modifier = Modifier
 ) {
     val layout = status.layout
-    val paneSources = status.paneSources
+    LayoutDiagramContent(
+        layout = layout,
+        paneSources = status.paneSources,
+        audioSource = status.audioSource,
+        isBusy = isBusy,
+        onSelectSource = { channel, src ->
+            onExecuteAction { _ ->
+                if (layout == Layout.OFF) controller.setMainSource(src) else controller.setSource(channel, src)
+            }
+        },
+        // Unlike a layout/input change, a wrong audio pane can't "lock you out" of the display -
+        // there's nothing to see, so nothing to protect against. Safe Mode's revert countdown is
+        // real here anyway (goes through the same onExecuteAction machinery a layout/input change
+        // does) but with no visual change to notice, it's very easy to miss and have it silently
+        // revert - which reads exactly like "switching the audio pane doesn't work". So audio
+        // always goes through onExecuteAudioAction, which never arms that countdown.
+        onSetAudio = { channel ->
+            onExecuteAudioAction { _ -> controller.setAudioSource(channel.channel) }
+        },
+        modifier = modifier
+    )
+}
 
+/** Read-only schematic preview of a [Preset], showing pane labels, inputs, and routed audio. */
+@Composable
+fun LayoutDiagramPreview(preset: Preset, modifier: Modifier = Modifier) {
+    LayoutDiagramContent(
+        layout = preset.layout,
+        paneSources = preset.paneSources,
+        audioSource = preset.audioSource,
+        isBusy = false,
+        onSelectSource = null,
+        onSetAudio = null,
+        modifier = modifier
+    )
+}
+
+@Composable
+private fun LayoutDiagramContent(
+    layout: Layout?,
+    paneSources: Map<PaneChannel, SourceCode>,
+    audioSource: Int?,
+    isBusy: Boolean,
+    onSelectSource: ((PaneChannel, SourceCode) -> Unit)?,
+    onSetAudio: ((PaneChannel) -> Unit)?,
+    modifier: Modifier = Modifier
+) {
     Box(
         modifier = modifier
             .aspectRatio(16f / 9f)
@@ -85,37 +130,23 @@ fun LayoutDiagram(
         val slots = paneSlotsFor(layout)
         // PBP/PIP audio (VCP 0xE8) only has one "which pane" control, not a per-pane one, so it's
         // only meaningful once there's more than one pane to choose between.
-        val audioSelectable = slots.size > 1
-
-        fun setSource(channel: PaneChannel, src: SourceCode) {
-            onExecuteAction { _ ->
-                if (layout == Layout.OFF) controller.setMainSource(src) else controller.setSource(channel, src)
-            }
-        }
-
-        // Unlike a layout/input change, a wrong audio pane can't "lock you out" of the display -
-        // there's nothing to see, so nothing to protect against. Safe Mode's revert countdown is
-        // real here anyway (goes through the same onExecuteAction machinery a layout/input change
-        // does) but with no visual change to notice, it's very easy to miss and have it silently
-        // revert - which reads exactly like "switching the audio pane doesn't work". So audio
-        // always goes through onExecuteAudioAction, which never arms that countdown.
-        fun setAudio(channel: PaneChannel) {
-            onExecuteAudioAction { _ -> controller.setAudioSource(channel.channel) }
-        }
+        val audioSelectable = onSetAudio != null && slots.size > 1
+        val showAudioBadge = slots.size > 1
 
         when {
             layout == null || layout == Layout.OFF ->
                 PaneCell(
                     slots[0].second, PaneChannel.PANE_1, paneSources[PaneChannel.PANE_1], isBusy,
-                    onSelect = { setSource(PaneChannel.PANE_1, it) }, modifier = Modifier.fillMaxSize()
+                    onSelect = onSelectSource?.let { cb -> { cb(PaneChannel.PANE_1, it) } },
+                    modifier = Modifier.fillMaxSize()
                 )
 
             layout == Layout.PIP -> {
                 PaneCell(
                     slots[0].second, PaneChannel.PANE_1, paneSources[PaneChannel.PANE_1], isBusy,
-                    onSelect = { setSource(PaneChannel.PANE_1, it) },
-                    isAudioSource = audioSelectable && status.audioSource == PaneChannel.PANE_1.channel,
-                    onSetAudio = { setAudio(PaneChannel.PANE_1) }.takeIf { audioSelectable },
+                    onSelect = onSelectSource?.let { cb -> { cb(PaneChannel.PANE_1, it) } },
+                    isAudioSource = showAudioBadge && audioSource == PaneChannel.PANE_1.channel,
+                    onSetAudio = if (audioSelectable) ({ onSetAudio!!(PaneChannel.PANE_1) }) else null,
                     modifier = Modifier.fillMaxSize()
                 )
                 PaneCell(
@@ -123,9 +154,9 @@ fun LayoutDiagram(
                     PaneChannel.PANE_2,
                     paneSources[PaneChannel.PANE_2],
                     isBusy,
-                    onSelect = { setSource(PaneChannel.PANE_2, it) },
-                    isAudioSource = audioSelectable && status.audioSource == PaneChannel.PANE_2.channel,
-                    onSetAudio = { setAudio(PaneChannel.PANE_2) }.takeIf { audioSelectable },
+                    onSelect = onSelectSource?.let { cb -> { cb(PaneChannel.PANE_2, it) } },
+                    isAudioSource = showAudioBadge && audioSource == PaneChannel.PANE_2.channel,
+                    onSetAudio = if (audioSelectable) ({ onSetAudio!!(PaneChannel.PANE_2) }) else null,
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .fillMaxSize(0.36f)
@@ -142,9 +173,9 @@ fun LayoutDiagram(
                     channels.forEachIndexed { i, channel ->
                         PaneCell(
                             slots[i].second, channel, paneSources[channel], isBusy,
-                            onSelect = { setSource(channel, it) },
-                            isAudioSource = audioSelectable && status.audioSource == channel.channel,
-                            onSetAudio = { setAudio(channel) }.takeIf { audioSelectable },
+                            onSelect = onSelectSource?.let { cb -> { cb(channel, it) } },
+                            isAudioSource = showAudioBadge && audioSource == channel.channel,
+                            onSetAudio = if (audioSelectable) ({ onSetAudio!!(channel) }) else null,
                             modifier = Modifier.weight(weights[i]).fillMaxHeight()
                         )
                     }
@@ -158,9 +189,9 @@ fun LayoutDiagram(
                     channels.forEachIndexed { i, channel ->
                         PaneCell(
                             slots[i].second, channel, paneSources[channel], isBusy,
-                            onSelect = { setSource(channel, it) },
-                            isAudioSource = audioSelectable && status.audioSource == channel.channel,
-                            onSetAudio = { setAudio(channel) }.takeIf { audioSelectable },
+                            onSelect = onSelectSource?.let { cb -> { cb(channel, it) } },
+                            isAudioSource = showAudioBadge && audioSource == channel.channel,
+                            onSetAudio = if (audioSelectable) ({ onSetAudio!!(channel) }) else null,
                             modifier = Modifier.weight(weights[i]).fillMaxHeight()
                         )
                     }
@@ -176,7 +207,7 @@ private fun PaneCell(
     channel: PaneChannel,
     source: SourceCode?,
     isBusy: Boolean,
-    onSelect: (SourceCode) -> Unit,
+    onSelect: ((SourceCode) -> Unit)?,
     modifier: Modifier,
     isAudioSource: Boolean = false,
     onSetAudio: (() -> Unit)? = null,
@@ -197,8 +228,14 @@ private fun PaneCell(
                         else MaterialTheme.colorScheme.outlineVariant,
                 shape = RoundedCornerShape(8.dp)
             )
-            .clickable(enabled = !isBusy) { expanded = true }
-            .testTag("paneCell_${channel.name}"),
+            .let { base ->
+                if (onSelect != null) {
+                    base.clickable(enabled = !isBusy) { expanded = true }
+                        .testTag("paneCell_${channel.name}")
+                } else {
+                    base
+                }
+            },
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -231,38 +268,40 @@ private fun PaneCell(
             )
         }
 
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            SourceCode.entries.filter { it != source }.forEach { src ->
-                DropdownMenuItem(
-                    text = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(sourceIcon(src), contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(src.description)
+        if (onSelect != null) {
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                SourceCode.entries.filter { it != source }.forEach { src ->
+                    DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(sourceIcon(src), contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(src.description)
+                            }
+                        },
+                        onClick = {
+                            expanded = false
+                            onSelect(src)
                         }
-                    },
-                    onClick = {
-                        expanded = false
-                        onSelect(src)
-                    }
-                )
-            }
-            if (onSetAudio != null && !isAudioSource) {
-                HorizontalDivider()
-                DropdownMenuItem(
-                    text = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Set as Audio Source")
+                    )
+                }
+                if (onSetAudio != null && !isAudioSource) {
+                    HorizontalDivider()
+                    DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Set as Audio Source")
+                            }
+                        },
+                        modifier = Modifier.testTag("setAudioSource_${channel.name}"),
+                        onClick = {
+                            expanded = false
+                            onSetAudio()
                         }
-                    },
-                    modifier = Modifier.testTag("setAudioSource_${channel.name}"),
-                    onClick = {
-                        expanded = false
-                        onSetAudio()
-                    }
-                )
+                    )
+                }
             }
         }
     }

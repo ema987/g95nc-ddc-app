@@ -130,6 +130,7 @@ fun main(args: Array<String>) {
     // since the menu bar icon already gives access to everything, About and Quit included.
     if (Platform.detect() == Platform.MAC) {
         System.setProperty("apple.awt.UIElement", "true")
+        System.setProperty("apple.awt.enableTemplateImages", "true")
     }
     applyRuntimeDockIcon()
 
@@ -427,8 +428,14 @@ private fun ApplicationScope.runMainApplication(startInBackground: Boolean = fal
         }
     }
 
+    var systemIsDark by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        SystemTheme.observeTrayDark { systemIsDark = it }
+    }
+
     if (Platform.detect() == Platform.LINUX) {
         LinuxTray(
+            isDark = systemIsDark,
             onDashboardOpenChange = { if (it) openDashboard() else isDashboardOpen = false },
             onSettingsOpenChange = { if (it) openSettings() else isSettingsOpen = false },
             presets = config.presets,
@@ -438,8 +445,9 @@ private fun ApplicationScope.runMainApplication(startInBackground: Boolean = fal
             onQuit = ::exitApplication
         )
     } else {
+        val trayIcon = remember(systemIsDark) { trayIconPainter(isDark = systemIsDark) }
         Tray(
-            icon = TrayIcon,
+            icon = trayIcon,
             state = trayState,
             onAction = { openDashboard() },
             menu = {

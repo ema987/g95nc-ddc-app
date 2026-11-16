@@ -13,6 +13,10 @@ the release workflow uses that section as the GitHub release notes.
 - Firmware `1009.2` requirement notice: one-time first-launch dialog, connection-failure hint,
   and README documentation.
 
+### Changed
+- Monochrome split-screen system tray / menu bar icon adapting to OS light and dark themes
+  across macOS, Linux, and Windows (keeping the full-color app/Dock icon).
+
 ## [1.0.0] - 2026-10-11
 
 First public release.

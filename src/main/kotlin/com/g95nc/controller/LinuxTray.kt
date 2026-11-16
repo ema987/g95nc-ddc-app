@@ -8,6 +8,7 @@ import kotlinx.coroutines.awaitCancellation
 
 @Composable
 fun LinuxTray(
+    isDark: Boolean = true,
     onDashboardOpenChange: (Boolean) -> Unit,
     onSettingsOpenChange: (Boolean) -> Unit,
     presets: List<Preset>,
@@ -25,15 +26,24 @@ fun LinuxTray(
         }
 
         try {
-            systemTray.setImage(renderAppIconImage(64))
+            systemTray.setImage(renderTrayIconImage(64, isDark = isDark))
         } catch (e: Exception) {
-            e.printStackTrace()
+            System.err.println("Failed to set tray icon: ${e.message}")
         }
         
         systemTray.setTooltip(AppInfo.NAME)
         
         onDispose {
             systemTray.shutdown()
+        }
+    }
+
+    LaunchedEffect(isDark) {
+        val systemTray = SystemTray.get() ?: return@LaunchedEffect
+        try {
+            systemTray.setImage(renderTrayIconImage(64, isDark = isDark))
+        } catch (e: Exception) {
+            System.err.println("Failed to update tray icon: ${e.message}")
         }
     }
 

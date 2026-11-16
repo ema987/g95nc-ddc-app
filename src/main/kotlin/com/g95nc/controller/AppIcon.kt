@@ -5,6 +5,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.painter.Painter
 
 /**
@@ -44,9 +45,50 @@ private fun DrawScope.drawScreenGlyph() {
     )
 }
 
-val TrayIcon: Painter = object : Painter() {
-    override val intrinsicSize = Size(24f, 24f)
-    override fun DrawScope.onDraw() = drawScreenGlyph()
+/**
+ * Monochrome split-screen monitor silhouette for the system tray / menu bar across macOS, Linux,
+ * and Windows. Unlike [AppIconPainter] (which is full-color for the Dock/launcher/windows), OS
+ * tray areas expect a single-color silhouette with a transparent background.
+ *
+ * On macOS with `apple.awt.enableTemplateImages=true`, pure black + alpha is tinted natively by
+ * NSStatusBar to match Light/Dark menu bars; on Linux and Windows, [isDark] selects white vs.
+ * dark ink.
+ */
+private fun DrawScope.drawTrayGlyph(tint: Color) {
+    val w = size.width
+    val h = size.height
+    val stroke = w * 0.095f
+    val left = w * 0.06f
+    val top = h * 0.20f
+    val frameW = w * 0.88f
+    val frameH = h * 0.60f
+    val corner = CornerRadius(w * 0.12f, w * 0.12f)
+
+    drawRoundRect(
+        color = tint,
+        topLeft = Offset(left, top),
+        size = Size(frameW, frameH),
+        cornerRadius = corner,
+        style = Stroke(width = stroke)
+    )
+    drawLine(
+        color = tint,
+        start = Offset(w * 0.5f, top),
+        end = Offset(w * 0.5f, top + frameH),
+        strokeWidth = stroke
+    )
+}
+
+fun trayIconPainter(isDark: Boolean, platform: Platform = Platform.detect()): Painter {
+    val tint = when {
+        platform == Platform.MAC -> Color.Black
+        isDark -> Color.White
+        else -> Color(0xFF333333)
+    }
+    return object : Painter() {
+        override val intrinsicSize = Size(24f, 24f)
+        override fun DrawScope.onDraw() = drawTrayGlyph(tint)
+    }
 }
 
 val AppIconPainter: Painter = object : Painter() {
@@ -83,6 +125,30 @@ fun renderAppIconImage(size: Int = 512): java.awt.image.BufferedImage {
 
     g.color = AppColors.signalActive.toAwtColor()
     g.fillRoundRect((inset + paneWidth + gap).toInt(), inset.toInt(), paneWidth.toInt(), paneHeight.toInt(), paneCorner, paneCorner)
+
+    g.dispose()
+    return image
+}
+
+/**
+ * Raster version of [trayIconPainter] for [LinuxTray] (dorkbox SystemTray takes an AWT Image).
+ */
+fun renderTrayIconImage(size: Int = 64, isDark: Boolean = true): java.awt.image.BufferedImage {
+    val image = java.awt.image.BufferedImage(size, size, java.awt.image.BufferedImage.TYPE_INT_ARGB)
+    val g = image.createGraphics()
+    g.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON)
+
+    val stroke = size * 0.095f
+    val left = size * 0.06f
+    val top = size * 0.20f
+    val frameW = size * 0.88f
+    val frameH = size * 0.60f
+    val arc = size * 0.24f
+
+    g.color = if (isDark) java.awt.Color.WHITE else java.awt.Color(0x33, 0x33, 0x33)
+    g.stroke = java.awt.BasicStroke(stroke)
+    g.draw(java.awt.geom.RoundRectangle2D.Float(left, top, frameW, frameH, arc, arc))
+    g.draw(java.awt.geom.Line2D.Float(size * 0.5f, top, size * 0.5f, top + frameH))
 
     g.dispose()
     return image
